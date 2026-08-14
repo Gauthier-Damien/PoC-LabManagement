@@ -1,0 +1,147 @@
+@page "/equipment"
+@using DPD.Web.Common
+@inject HttpClient Http
+@inject ISnackbar Snackbar
+@inject ILogger<Equipment> Logger
+
+<PageTitle>Equipment</PageTitle>
+
+<h1>Equipment and Maintenance</h1>
+
+<p>Reserve equipment with conflict prevention and maintenance lock checks.</p>
+
+<div class="row g-3">
+    <div class="col-md-7">
+        <EditForm Model="reservation" OnValidSubmit="ReserveAsync">
+            <MudSelect T="Guid" Label="Equipment" @bind-Value="reservation.EquipmentId">
+                @foreach (var item in equipment)
+                {
+                    <MudSelectItem Value="item.Id">@item.Name</MudSelectItem>
+                }
+            </MudSelect>
+            <MudSelect T="Guid" Label="Resource" @bind-Value="reservation.ResourceId">
+                @foreach (var item in resources)
+                {
+                    <MudSelectItem Value="item.Id">@item.Name</MudSelectItem>
+                }
+            </MudSelect>
+            <MudDatePicker Label="Start Date" Date="startDate" DateChanged="OnStartDateChanged" />
+            <MudTimePicker Label="Start Time" Time="startTime" TimeChanged="OnStartTimeChanged" />
+            <MudDatePicker Label="End Date" Date="endDate" DateChanged="OnEndDateChanged" />
+            <MudTimePicker Label="End Time" Time="endTime" TimeChanged="OnEndTimeChanged" />
+            <MudTextField @bind-Value="reservation.Purpose" Label="Purpose" />
+            <MudButton Color="Color.Primary" ButtonType="ButtonType.Submit">Reserve</MudButton>
+        </EditForm>
+    </div>
+</div>
+
+<MudDivider Class="my-3" />
+
+<MudTable Items="reservations" Dense="true" Hover="true">
+    <HeaderContent>
+        <MudTh>Equipment</MudTh>
+        <MudTh>Resource</MudTh>
+        <MudTh>Start</MudTh>
+        <MudTh>End</MudTh>
+        <MudTh>Purpose</MudTh>
+    </HeaderContent>
+    <RowTemplate>
+        <MudTd>@LookupName(equipment, context.EquipmentId)</MudTd>
+        <MudTd>@LookupName(resources, context.ResourceId)</MudTd>
+        <MudTd>@context.StartTime.ToLocalTime()</MudTd>
+        <MudTd>@context.EndTime.ToLocalTime()</MudTd>
+        <MudTd>@context.Purpose</MudTd>
+    </RowTemplate>
+</MudTable>
+
+@code {
+    private readonly ReserveVm reservation = new();
+    private DateTime? startDate = DateTime.UtcNow.Date;
+    private DateTime? endDate = DateTime.UtcNow.Date;
+    private TimeSpan? startTime = new(9, 0, 0);
+    private TimeSpan? endTime = new(12, 0, 0);
+
+    private List<IdNameVm> equipment = [];
+    private List<IdNameVm> resources = [];
+    private List<ReservationVm> reservations = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+        ApplyDateTime();
+    }
+
+    private async Task LoadAsync()
+    {
+        equipment = await Http.GetFromJsonAsync<List<IdNameVm>>("api/reference/equipment") ?? [];
+        resources = await Http.GetFromJsonAsync<List<IdNameVm>>("api/reference/resources") ?? [];
+        reservations = await Http.GetFromJsonAsync<List<ReservationVm>>("api/equipment/reservations?page=1&pageSize=100") ?? [];
+
+        if (equipment.Count > 0 && reservation.EquipmentId == Guid.Empty) reservation.EquipmentId = equipment[0].Id;
+        if (resources.Count > 0 && reservation.ResourceId == Guid.Empty) reservation.ResourceId = resources[0].Id;
+    }
+
+    private static string LookupName(List<IdNameVm> items, Guid id) => items.FirstOrDefault(x => x.Id == id)?.Name ?? id.ToString();
+
+    private void OnStartDateChanged(DateTime? date)
+    {
+        startDate = date;
+        ApplyDateTime();
+    }
+
+    private void OnEndDateChanged(DateTime? date)
+    {
+        endDate = date;
+        ApplyDateTime();
+    }
+
+    private void OnStartTimeChanged(TimeSpan? time)
+    {
+        startTime = time;
+        ApplyDateTime();
+    }
+
+    private void OnEndTimeChanged(TimeSpan? time)
+    {
+        endTime = time;
+        ApplyDateTime();
+    }
+
+    private void ApplyDateTime()
+    {
+        var start = (startDate ?? DateTime.UtcNow.Date).Date + (startTime ?? TimeSpan.Zero);
+        var end = (endDate ?? DateTime.UtcNow.Date).Date + (endTime ?? TimeSpan.FromHours(1));
+        reservation.StartTime = new DateTimeOffset(DateTime.SpecifyKind(start, DateTimeKind.Local));
+        reservation.EndTime = new DateTimeOffset(DateTime.SpecifyKind(end, DateTimeKind.Local));
+    }
+
+    private async Task ReserveAsync()
+    {
+        try
+        {
+            ApplyDateTime();
+            var response = await Http.PostAsJsonAsync("api/equipment/reservations", reservation);
+            await response.EnsureSuccessOrThrowAsync(Logger, "réservation d'équipement");
+            reservation.Purpose = string.Empty;
+            await LoadAsync();
+            Snackbar.Add("Équipement réservé.", Severity.Success);
+        }
+        catch (HttpRequestException ex)
+        {
+            Logger.LogError(ex, "Échec de la réservation d'équipement");
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    private sealed class ReserveVm
+    {
+        public Guid EquipmentId { get; set; }
+        public Guid ResourceId { get; set; }
+        public DateTimeOffset StartTime { get; set; }
+        public DateTimeOffset EndTime { get; set; }
+        public string Purpose { get; set; } = "Operational activity";
+    }
+
+    private sealed record ReservationVm(Guid Id, Guid EquipmentId, Guid ResourceId, DateTimeOffset StartTime, DateTimeOffset EndTime, string Purpose);
+    private sealed record IdNameVm(Guid Id, string Name);
+}

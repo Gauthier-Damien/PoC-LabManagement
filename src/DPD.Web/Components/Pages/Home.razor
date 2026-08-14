@@ -1,0 +1,48 @@
+﻿@page "/"
+@inject HttpClient Http
+
+<PageTitle>Dashboard</PageTitle>
+
+<h1>Operations Dashboard</h1>
+
+@if (dashboard is null)
+{
+	<p>Loading dashboard...</p>
+}
+else
+{
+	<div class="row g-3">
+		<div class="col-md-2"><MudPaper Class="pa-3">Resources<br /><b>@dashboard.Resources</b></MudPaper></div>
+		<div class="col-md-2"><MudPaper Class="pa-3">Projects<br /><b>@dashboard.Projects</b></MudPaper></div>
+		<div class="col-md-2"><MudPaper Class="pa-3">Studies<br /><b>@dashboard.ActiveStudies</b></MudPaper></div>
+		<div class="col-md-3"><MudPaper Class="pa-3">Equipment Reservations<br /><b>@dashboard.ActiveEquipmentReservations</b></MudPaper></div>
+		<div class="col-md-3"><MudPaper Class="pa-3">Maintenance Budget<br /><b>@dashboard.MaintenanceBudget</b></MudPaper></div>
+	</div>
+
+	<MudTable Items="dashboard.CapacityProjection" Dense="true" Hover="true" Class="mt-3">
+		<HeaderContent>
+			<MudTh>Horizon</MudTh>
+			<MudTh>Capacity (MD)</MudTh>
+			<MudTh>Allocated (MD)</MudTh>
+			<MudTh>Gap (MD)</MudTh>
+		</HeaderContent>
+		<RowTemplate>
+			<MudTd>@context.HorizonMonths months</MudTd>
+			<MudTd>@context.CapacityMd</MudTd>
+			<MudTd>@context.AllocatedMd</MudTd>
+			<MudTd>@context.GapMd</MudTd>
+		</RowTemplate>
+	</MudTable>
+}
+
+@code {
+	private DashboardVm? dashboard;
+
+	protected override async Task OnInitializedAsync()
+	{
+		dashboard = await Http.GetFromJsonAsync<DashboardVm>("api/dashboard");
+	}
+
+	private sealed record DashboardVm(int Resources, int Projects, int ActiveStudies, int ActiveEquipmentReservations, decimal MaintenanceBudget, List<CapacityVm> CapacityProjection);
+	private sealed record CapacityVm(int HorizonMonths, decimal CapacityMd, decimal AllocatedMd, decimal GapMd);
+}

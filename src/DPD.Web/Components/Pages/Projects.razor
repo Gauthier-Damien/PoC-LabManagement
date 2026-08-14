@@ -1,0 +1,101 @@
+@page "/projects"
+@using DPD.Web.Common
+@inject HttpClient Http
+@inject ISnackbar Snackbar
+@inject ILogger<Projects> Logger
+
+
+<PageTitle>Projects</PageTitle>
+
+<h1>Project and Study Management</h1>
+
+<p>Create projects and manage status transitions from Hypothesis to operational phases.</p>
+
+<div class="row g-3">
+    <div class="col-md-5">
+        <EditForm Model="createProject" OnValidSubmit="CreateProjectAsync">
+            <DataAnnotationsValidator />
+            <MudTextField @bind-Value="createProject.Name" Label="Project Name" Required="true" />
+            <MudTextField @bind-Value="createProject.Code" Label="Project Code" Required="true" />
+            <MudSelect T="Guid" Label="Manager" @bind-Value="createProject.ManagerId">
+                @foreach (var item in resources)
+                {
+                    <MudSelectItem Value="item.Id">@item.Name</MudSelectItem>
+                }
+            </MudSelect>
+            <MudNumericField T="decimal" @bind-Value="createProject.EstimatedMd" Label="Estimated MD" Min="1" Required="true" />
+            <MudButton Color="Color.Primary" Variant="Variant.Filled" ButtonType="ButtonType.Submit">Create project</MudButton>
+        </EditForm>
+    </div>
+</div>
+
+<MudDivider Class="my-3" />
+
+<MudTable Items="projects" Dense="true" Hover="true">
+    <HeaderContent>
+        <MudTh>Code</MudTh>
+        <MudTh>Name</MudTh>
+        <MudTh>Status</MudTh>
+        <MudTh>Estimated MD</MudTh>
+        <MudTh>Actual MD</MudTh>
+    </HeaderContent>
+    <RowTemplate>
+        <MudTd DataLabel="Code">@context.Code</MudTd>
+        <MudTd DataLabel="Name">@context.Name</MudTd>
+        <MudTd DataLabel="Status">@context.Status</MudTd>
+        <MudTd DataLabel="Estimated">@context.EstimatedMd</MudTd>
+        <MudTd DataLabel="Actual">@context.ActualMd</MudTd>
+    </RowTemplate>
+</MudTable>
+
+@code {
+    private readonly CreateProjectVm createProject = new();
+    private List<ProjectVm> projects = [];
+    private List<IdNameVm> resources = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        resources = await Http.GetFromJsonAsync<List<IdNameVm>>("api/reference/resources") ?? [];
+        if (resources.Count > 0 && createProject.ManagerId == Guid.Empty)
+        {
+            createProject.ManagerId = resources[0].Id;
+        }
+
+        projects = await Http.GetFromJsonAsync<List<ProjectVm>>("api/projects?page=1&pageSize=100") ?? [];
+    }
+
+    private async Task CreateProjectAsync()
+    {
+        try
+        {
+            var response = await Http.PostAsJsonAsync("api/projects", createProject);
+            await response.EnsureSuccessOrThrowAsync(Logger, "création d'un projet");
+            createProject.Name = string.Empty;
+            createProject.Code = string.Empty;
+            createProject.EstimatedMd = 0;
+            await LoadAsync();
+            Snackbar.Add("Projet créé avec succès.", Severity.Success);
+        }
+        catch (HttpRequestException ex)
+        {
+            Logger.LogError(ex, "Échec de la création du projet");
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    private sealed class CreateProjectVm
+    {
+        public string Name { get; set; } = string.Empty;
+        public string Code { get; set; } = string.Empty;
+        public Guid ManagerId { get; set; }
+        public decimal EstimatedMd { get; set; }
+    }
+
+    private sealed record ProjectVm(Guid Id, string Name, string Code, string Status, decimal EstimatedMd, decimal ActualMd, decimal RemainingMd, decimal VarianceMd);
+    private sealed record IdNameVm(Guid Id, string Name);
+}

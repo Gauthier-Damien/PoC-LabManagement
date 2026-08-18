@@ -104,17 +104,23 @@ else
 
 builder.Services.AddAuthorization(options =>
 {
+    // 8 rôles RBAC prévus par le PRD/SAD : Admin, Manager, EquipmentOwner (Responsable Équipement),
+    // DepartmentResponsible (Responsable Département), SD (Study Director), PrincipalInvestigator (PI),
+    // StandardUser/Scientist (Utilisateur Standard), ReadOnly (Lecture seule - aucune policy d'écriture).
     options.AddPolicy(PolicyNames.SubmitTimeEntry, policy =>
-        policy.RequireRole("Scientist", "Manager", "Admin", "StandardUser"));
+        policy.RequireRole("Scientist", "Manager", "Admin", "StandardUser", "PrincipalInvestigator", "SD"));
 
     options.AddPolicy(PolicyNames.ValidateTimesheet, policy =>
-        policy.RequireRole("Manager", "Admin"));
+        policy.RequireRole("Manager", "Admin", "DepartmentResponsible"));
 
     options.AddPolicy(PolicyNames.ModifyProjectStatus, policy =>
         policy.RequireRole("SD", "Manager", "Admin"));
 
+    options.AddPolicy(PolicyNames.ManageStudies, policy =>
+        policy.RequireRole("SD", "PrincipalInvestigator", "Admin"));
+
     options.AddPolicy(PolicyNames.ReserveEquipment, policy =>
-        policy.RequireRole("Scientist", "Manager", "Admin"));
+        policy.RequireRole("Scientist", "Manager", "Admin", "PrincipalInvestigator", "StandardUser"));
 
     options.AddPolicy(PolicyNames.ManageMaintenanceContracts, policy =>
         policy.RequireRole("EquipmentOwner", "Admin"));
@@ -193,3 +199,11 @@ using (var scope = app.Services.CreateScope())
 }
 
 app.Run();
+
+// Point d'entrée exposé en classe partielle pour permettre à WebApplicationFactory<Program>
+// (tests d'intégration) de démarrer l'application en mémoire.
+public partial class Program
+{
+}
+
+

@@ -1,0 +1,240 @@
+﻿
+Technical Design Document (TDD)
+Version : 1.0
+Date : Juillet 2026
+ 
+1. Objectif
+L'objectif de ce document est de décrire avec précision l'implémentation technique du PoC (Proof of Concept) de la plateforme DPD Operations Management, conçu pour évoluer de manière transparente vers une architecture de production cible. Ce document se concentre exclusivement sur la traduction technique des exigences (PRD) et des décisions d'architecture (SAD/ADR). Il détaille l'architecture logicielle, la structure du code, les modèles de données, la sécurité et la stratégie de déploiement.
+ 
+2. Références
+Ce document s'appuie sur les documents de conception initiaux suivants :
+PRD (Product Requirements Document) : Spécifications fonctionnelles, workflows (Time Tracking, cycle de vie projet) et contraintes réglementaires (GxP, ISO 9001).
+SAD (Software Architecture Document) : Modèles C4 (Contexte et Conteneurs), logique modulaire et diagrammes de séquence.
+ADR (Architecture Decision Records) : Dossier des décisions d'architecture (ADR-001 à ADR-013). 
+
+
+
+
+
+
+
+
+3. Architecture du projet
+L'application suit une architecture "Monolithe Modulaire" basée sur les principes de la Clean Architecture (ADR-001). La solution Visual Studio est organisée comme suit pour garantir une séparation stricte des responsabilités :
+DPD.sln├── src/│   ├── DPD.Domain         (Entités métier, Value Objects, Interfaces Repository, Domain Events)│   ├── DPD.Application    (Use Cases CQRS, MediatR, DTOs, FluentValidation)│   ├── DPD.Infrastructure (Implémentation EF Core, Authentification Entra ID, Serilog, Email)│   └── DPD.Web            (Blazor Web App, Controllers API, Middleware, Pages, Composants)└── tests/    ├── DPD.Domain.Tests    ├── DPD.Application.Tests    └── DPD.Integration.Tests
+4. Technologies
+La pile technologique est unifiée autour de l'écosystème Microsoft pour maximiser la productivité et s'intégrer à l'infrastructure d'entreprise cible.
+Composant
+Technologie / Framework
+ 
+Framework Core
+.NET 8 (C# 12)
+Frontend / UI
+Blazor Web App (Rendu hybride SSR/WASM), MudBlazor
+ORM
+Entity Framework Core 8
+Base de données (PoC)
+SQLite
+Base de données (Prod)
+SQL Server
+Authentification (PoC)
+MockUserService (Développement local hors domaine)
+Authentification (Prod)
+Microsoft Entra ID (OIDC / OAuth2)
+Logging
+Serilog (Sinks : Console, Fichier, AuditLog Table)
+Validation
+FluentValidation
+Mapping
+Mapster (préféré pour les performances)
+Pattern d'accès
+MediatR (CQRS)
+Tests
+xUnit, Moq, FluentAssertions, Testcontainers (pour SQL)
+
+
+
+
+
+
+
+
+
+5. Organisation des modules
+L'architecture modulaire découpe l'application en verticaux fonctionnels cohérents. Chaque module encapsule sa propre logique.
+5.1 Resource Management
+Responsabilités : Gestion des employés, calcul des FTE (Full-Time Equivalent), affectation aux départements, historique hiérarchique.
+Commands/Queries : CreateResourceCommand, UpdateFTECommand, GetResourceHierarchyQuery.
+Services : FteCalculationService.
+5.2 Project & Study Management
+Responsabilités : Cycle de vie des projets (Hypothesis -> Signed -> Completed), création des études, suivi des charges estimées (MD Estimés).
+Commands/Queries : ChangeProjectStatusCommand, CreateStudyCommand, GetProjectPortfolioQuery.
+Validators : Validation interdisant le passage à "Signed" sans budget qualifié.
+5.3 Time Tracking
+Responsabilités : Saisie des temps, workflow d'approbation (Submit -> Approve/Reject -> Lock).
+Commands/Queries : SubmitTimesheetCommand, ApproveTimesheetCommand.
+Services : TimesheetWorkflowService pour gérer le verrouillage mensuel.
+5.4 Capacity Planning
+Responsabilités : Calculs prévisionnels de charge vs capacité à 3, 6, 12 et 24 mois. (ADR-011).
+Commands/Queries : CalculateCapacityProjectionQuery.
+5.5 Equipment & Maintenance
+Responsabilités : Cycle de vie matériel, réservation (prévention des conflits), contrats de maintenance (SLA, fournisseurs ADR-010), alertes d'expiration.
+Commands/Queries : ReserveEquipmentCommand, RenewMaintenanceContractCommand.
+5.6 Reporting & Administration
+Responsabilités : KPI financiers (EAC, Répartition AD/FPD/MSI), matrice RBAC, gestion documentaire (ADR-009).
+
+6. Architecture Clean
+Domain : Cœur du système, agnostique de toute technologie externe. Contient les entités riches (ex: Project avec la méthode ChangeStatus()), les Value Objects (ex: FTE, DateRange), et les exceptions métier (DomainException).
+Application : Orchestration des cas d'usage via MediatR (CQRS). Contient les DTOs, les CommandHandlers, les QueryHandlers, et la validation des flux d'entrée (FluentValidation).
+Infrastructure : Implémentation des interfaces du Domain. Configuration d'EF Core (DbContext, Interceptors), gestion OIDC/Entra ID, services d'email (SMTP), et Worker Services pour les tâches de fond.
+Frontend (Blazor) : Interface utilisateur. Composants MudBlazor, gestion des ViewModels, injection des politiques de sécurité (Authorization Policies).
+ 
+7. Structure des dossiers (Exemple Couche Application)
+DPD.Application/├── Common/│   ├── Behaviours/ (LoggingBehaviour, ValidationBehaviour)│   ├── Exceptions/│   └── Interfaces/├── Modules/│   ├── Resources/│   │   ├── Commands/ (CreateResource, UpdateManager)│   │   ├── Queries/  (GetResourceList)│   │   ├── Validators/│   │   └── DTOs/│   ├── TimeTracking/│   ├── Projects/│   └── Equipment/
+ 
+8. Description détaillée des entités
+8.1 Entité : Resource
+Propriétés : Id (Guid), FirstName, LastName, Email, Department, FTE (float, max 1.0), IsDeleted (bool).
+Relations : 1:N vers TimeEntry, 1:N vers ProjectAllocation, N:M vers Skill, Auto-référencement pour ManagerId.
+Contraintes : L'email doit être unique. FTE > 0 et <= 1.0.
+Audit & Soft Delete : Implémente IAuditable et ISoftDeletable.
+8.2 Entité : Project & Study
+Project : Id, ProjectCode, Status (Enum: Hypothesis, Quoted, Signed, OnGoing, OnHold, Completed, Cancelled, Lost).
+Study : Id, ProjectId (FK), Code, StudyDirectorId (FK Resource), TargetDate, EstimatedMD.
+8.3 Entité : TimeEntry
+Propriétés : Id, ResourceId, StudyId, WorkDate, Hours, Status (Draft, Submitted, Approved, Rejected, Locked).
+Règles : Hours <= 24 par jour. Status verrouille la modification.
+
+ 
+9. Implémentation de la base de données
+Migrations : Migrations EF Core gérées en mode "Code-First". Génération via CI/CD.
+Convention : Noms de tables au pluriel (ex: Resources), clés primaires nommées Id, clés étrangères [Entity]Id.
+Soft Delete : Une interface ISoftDeletable impose une colonne IsDeleted. Un Global Query Filter (modelBuilder.Entity<T>().HasQueryFilter(x => !x.IsDeleted)) masque automatiquement ces données.
+Cascade Delete : Désactivé globalement (DeleteBehavior.Restrict) pour éviter la perte de données en cascade et garantir l'intégrité de l'Audit Trail.
+Indexes : Index B-Tree sur les clés étrangères, IsDeleted, et les champs de recherche fréquente (ex: Email, ProjectCode).
+10. Flux CQRS (Exemple : Soumission d'une Timesheet)
+
+
+
+
+11. API Interne (Commandes et Requêtes)
+Commande / Requête
+Entrées
+Validation métier
+Sorties / Exceptions
+ 
+CreateProjectCommand
+Name, Code, ManagerId
+Code unique, Manager existe
+Guid (ProjectId) / ValidationException
+ApproveTimesheetCommand
+TimesheetId, ApproverId
+Approver est bien le Manager, Statut est "Submitted"
+Success / UnauthorizedException
+ReserveEquipmentCommand
+EquipId, StartTime, EndTime
+Aucun conflit de dates, équipement non en maintenance
+Guid (ReservationId) / ConflictException
+ 
+12. Pages Blazor & 13. Composants
+Dashboard (Accueil) : Composants KPIWidget (Taux d'occupation, alertes). Chargement via requêtes asynchrones Dapper/EF.
+Time Tracking : Composant TimeEntryEditor (Grille de saisie type Excel). Résolution des conflits en temps réel.
+Resource Planning : Composant CapacityChart affichant les projections FTE sur 3/6/12 mois.
+Equipment : Composant ReservationCalendar (Scheduler MudBlazor) interactif.
+ 
+
+
+
+
+14. Gestion des erreurs
+Global Exception Handler : Middleware ASP.NET Core interceptant toutes les exceptions.
+Mapping : ValidationException -> 400 Bad Request. NotFoundException -> 404. BusinessException -> 422 Unprocessable Entity.
+Concurrence : Utilisation de RowVersion dans EF Core. Déclenche une DbUpdateConcurrencyException retournée à l'UI pour forcer un rafraîchissement.
+ 
+15. Authentification & 16. Autorisations (RBAC)
+PoC : MockUserService injecté injectant des Claims statiques (développement hors domaine).
+Production : Intégration OIDC avec Microsoft Entra ID. Les groupes Entra sont mappés aux rôles applicatifs.
+Action / Policy
+Scientist
+Manager
+Admin
+ 
+Saisie TimeEntry
+Oui
+Oui
+Oui
+Validation Timesheet
+Non
+Oui (son équipe)
+Oui (Global)
+Modification Projet (Statut)
+Non
+Oui (Study Director)
+Oui
+ Note : Toutes les listes métier > 100 lignes doivent être paginées.
+
+
+
+
+
+17. Audit Trail (Conformité GxP)
+Mise en place d'un Intercepteur EF Core AuditInterceptor. Avant chaque SaveChangesAsync(), l'intercepteur inspecte le ChangeTracker. Toute modification génère une entrée JSON immuable dans la table AuditLogs :
+{  "Timestamp": "2026-07-23T10:15:30Z",  "User": "jean.doe@catalent.com",  "Action": "Update",  "EntityName": "Project",  "EntityId": "5fa85f64-5717-4562-b3fc-2c963f66afa6",  "Changes": [    { "Field": "Status", "OldValue": "Hypothesis", "NewValue": "Quoted" }  ]}
+ 
+18. Logging & 19. Configuration
+Serilog : Intégré via appsettings.json. Structure des logs incluant le CorrelationId (pour le traçage web), l'utilisateur, et l'exception complète pour les niveaux Error et Critical.
+Configuration : Chaînes de connexion (SQLite en local, SQL Server via variables d'environnement en production), URL du tenant Entra ID, Feature Flags pour activer/désactiver des modules. Les secrets ne sont jamais commités (utilisation de User Secrets ou Azure Key Vault).
+
+
+
+
+
+
+
+
+
+
+
+ 
+20. Déploiement
+Environnement
+Infrastructure cible
+Détails
+ 
+Phase 1 : PoC
+Machine Windows locale hors domaine
+Hébergement Kestrel direct, BDD SQLite intégrée, Mock Auth. Lancement via un simple `.exe`.
+Phase 2 : Production
+Windows Server / IIS / SQL Server
+Pool applicatif IIS unique. BDD SQL Server distante. Authentification couplée à Entra ID via certificats HTTPS d'entreprise.
+
+21. Migration des données (ETL Excel)
+La migration depuis les historiques Excel est critique (ADR-008). L'approche consiste en un outil C# d'import :
+Extraction : Lecture via EPPlus ou ClosedXML.
+Validation : Application des règles métier via FluentValidation (ex: détection de doublons d'équipements, correction des formats de date).
+Transformation : Mapping vers le nouveau modèle SQL (résolution des IDs via les noms).
+Chargement : Insertion transactionnelle en base SQL Server avec génération d'Audit Trail pour tracer l'origine des données.
+ 
+
+
+
+
+22. Performance & 23. Sécurité
+Performance : Temps de réponse cibles < 2 secondes. Pagination et Lazy Loading UI implémentés dans Blazor. Caching en mémoire (IMemoryCache) pour les référentiels statiques (départements, statuts). Indexation stricte sur les foreign keys et IsDeleted.
+Sécurité (OWASP) : Prévention des injections SQL garantie par EF Core. Validation des entrées stricte. Tokens CSRF gérés par le middleware Blazor. Minimisation des données personnelles (RGPD, ADR-012).
+ 
+24. Tests & 25. Checklist Go-Live
+Tests : xUnit pour la logique Domain/Application (Validators). Coverage attendu : > 80% sur le cœur métier. Testcontainers pour simuler SQL Server lors des tests d'intégration des repositories.
+Checklist Production : Variables d'environnement configurées, Migration EF exécutée, Secrets injectés, Health Checks (BDD et Entra ID) validés au démarrage, Plan de sauvegarde testé.
+ 
+27. Stratégie de validation GxP (Annexe Qualité)
+Qualification de l'application : Rédaction et exécution des protocoles IQ (Installation), OQ (Opérationnelle), et PQ (Performance) en environnement de staging.
+CFR 21 Part 11 : Traçabilité des actions critiques équivalente à une signature électronique via verrouillage d'Audit Trail et identification sécurisée OIDC.
+Change Control : Toute future modification post-Go-Live passera par le processus Qualité interne.
+ 
+28. Plan de transition PoC vers Production
+Le basculement s'opérera par :
+Changement de Provider EF : UseSqlite() remplacé par UseSqlServer() via configuration.
+Service d'Authentification : Swap de MockUserService vers EntraIdUserService via l'injection de dépendances (IoC).
+Rollback : En cas de corruption critique post-migration, plan de retour arrière sur les fichiers Excel originaux et restauration de snapshot SQL.
+

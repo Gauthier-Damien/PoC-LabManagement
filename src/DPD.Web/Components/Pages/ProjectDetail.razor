@@ -1,0 +1,216 @@
+@page "/projects/{ProjectId:guid}"
+@using DPD.Web.Common
+@using DPD.Domain.Enums
+@using DPD.Web.Authorization
+@inject HttpClient Http
+@inject ISnackbar Snackbar
+@inject ILogger<ProjectDetail> Logger
+@inject NavigationManager NavigationManager
+
+<PageTitle>Projet @detail?.Code</PageTitle>
+
+<MudButton StartIcon="@Icons.Material.Filled.ArrowBack" OnClick="GoBack" Class="mb-2">Retour aux projets</MudButton>
+
+@if (loadError is not null)
+{
+    <MudAlert Severity="Severity.Error">@loadError</MudAlert>
+}
+else if (detail is null)
+{
+    <MudProgressCircular Indeterminate="true" />
+}
+else
+{
+    <h1>@detail.Code — @detail.Name</h1>
+
+    <div class="d-flex flex-wrap gap-2 my-2">
+        <MudChip T="string" Color="StatusColor(detail.Status)">@detail.Status</MudChip>
+        @if (detail.ConsumesCapacity)
+        {
+            <MudChip T="string" Color="Color.Info">Consomme la capacité</MudChip>
+        }
+        @if (detail.IsArchived)
+        {
+            <MudChip T="string" Color="Color.Dark">Archivé</MudChip>
+        }
+    </div>
+
+    <MudGrid Class="my-2">
+        <MudItem xs="6" sm="3"><MudPaper Class="pa-3" Elevation="1"><p class="text-muted mb-0">MD Estimés</p><h3>@detail.EstimatedMd</h3></MudPaper></MudItem>
+        <MudItem xs="6" sm="3"><MudPaper Class="pa-3" Elevation="1"><p class="text-muted mb-0">MD Réalisés</p><h3>@detail.ActualMd</h3></MudPaper></MudItem>
+        <MudItem xs="6" sm="3"><MudPaper Class="pa-3" Elevation="1"><p class="text-muted mb-0">MD Restants</p><h3>@detail.RemainingMd</h3></MudPaper></MudItem>
+        <MudItem xs="6" sm="3"><MudPaper Class="pa-3" Elevation="1"><p class="text-muted mb-0">Écart</p><h3 class="@(detail.VarianceMd > 0 ? "mud-error-text" : "")">@detail.VarianceMd</h3></MudPaper></MudItem>
+    </MudGrid>
+
+    <MudGrid Class="my-3">
+        <MudItem xs="12" md="6">
+            <MudPaper Class="pa-3" Elevation="1">
+                <h4>Réalisé vs Restant (MD)</h4>
+                <MudChart ChartType="ChartType.Donut" InputData="@donutData" InputLabels="@donutLabels" Width="280px" Height="280px" />
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="12" md="6">
+            <MudPaper Class="pa-3" Elevation="1">
+                <h4>Charge par Département (MD Réalisés)</h4>
+                @if (departmentSeries.Count > 0)
+                {
+                    <MudChart ChartType="ChartType.Bar" ChartSeries="@departmentSeries" XAxisLabels="@departmentLabels" Width="100%" Height="280px" />
+                }
+                else
+                {
+                    <p class="text-muted">Aucune charge départementale enregistrée pour ce projet.</p>
+                }
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+
+    <MudPaper Class="pa-3 my-3" Elevation="1">
+        <h4>Cycle de vie du projet</h4>
+        <AuthorizeView Policy="@PolicyNames.ModifyProjectStatus">
+            <Authorized>
+                @if (detail.AllowedNextStatuses.Count > 0)
+                {
+                    <p>Faire évoluer le statut vers :</p>
+                    <div class="d-flex flex-wrap gap-2">
+                        @foreach (var next in detail.AllowedNextStatuses)
+                        {
+                            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="() => ChangeStatusAsync(next)">
+                                @next
+                            </MudButton>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <MudAlert Severity="Severity.Info">Ce projet est dans un état terminal (archivé) : aucune transition possible.</MudAlert>
+                }
+            </Authorized>
+            <NotAuthorized>
+                <MudAlert Severity="Severity.Warning">
+                    Votre rôle actuel ne permet pas de modifier le statut de ce projet (réservé à SD / Manager / Admin).
+                    Changez de rôle via le menu latéral si nécessaire.
+                </MudAlert>
+            </NotAuthorized>
+        </AuthorizeView>
+    </MudPaper>
+
+    <MudPaper Class="pa-3 my-3" Elevation="1">
+        <h4>Études rattachées (@detail.Studies.Count)</h4>
+        @if (detail.Studies.Count == 0)
+        {
+            <p class="text-muted">Aucune étude créée pour ce projet. <MudLink Href="/studies">Créer une étude</MudLink></p>
+        }
+        else
+        {
+            <MudTable Items="detail.Studies" Dense="true" Hover="true">
+                <HeaderContent>
+                    <MudTh>Code</MudTh>
+                    <MudTh>Département</MudTh>
+                    <MudTh>Statut</MudTh>
+                    <MudTh>Date Cible</MudTh>
+                    <MudTh>MD Estimés</MudTh>
+                    <MudTh>MD Réalisés</MudTh>
+                    <MudTh>Écart</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd>@context.Code</MudTd>
+                    <MudTd>@context.Department</MudTd>
+                    <MudTd>@context.Status</MudTd>
+                    <MudTd>@context.TargetDate</MudTd>
+                    <MudTd>@context.EstimatedMd</MudTd>
+                    <MudTd>@context.ActualMd</MudTd>
+                    <MudTd>@context.VarianceMd</MudTd>
+                </RowTemplate>
+            </MudTable>
+        }
+    </MudPaper>
+}
+
+@code {
+    [Parameter]
+    public Guid ProjectId { get; set; }
+
+    private ProjectDetailVm? detail;
+    private string? loadError;
+    private double[] donutData = [];
+    private string[] donutLabels = [];
+    private List<ChartSeries> departmentSeries = [];
+    private string[] departmentLabels = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            loadError = null;
+            var response = await Http.GetAsync($"api/projects/{ProjectId}");
+            await response.EnsureSuccessOrThrowAsync(Logger, "chargement du détail projet");
+            detail = await response.Content.ReadFromJsonAsync<ProjectDetailVm>();
+
+            if (detail is not null)
+            {
+                donutData = [(double)detail.ActualMd, (double)Math.Max(0, detail.RemainingMd)];
+                donutLabels = ["Réalisé", "Restant"];
+
+                departmentLabels = detail.DepartmentCharges.Select(d => d.Department.ToString()).ToArray();
+                departmentSeries =
+                [
+                    new ChartSeries
+                    {
+                        Name = "MD Réalisés",
+                        Data = detail.DepartmentCharges.Select(d => (double)d.ActualMd).ToArray()
+                    }
+                ];
+            }
+        }
+        catch (HttpRequestException ex)
+        {
+            Logger.LogError(ex, "Échec du chargement du détail projet {ProjectId}", ProjectId);
+            loadError = ex.Message;
+        }
+    }
+
+    private async Task ChangeStatusAsync(ProjectStatus newStatus)
+    {
+        try
+        {
+            var response = await Http.PatchAsJsonAsync($"api/projects/{ProjectId}/status", new { Status = newStatus });
+            await response.EnsureSuccessOrThrowAsync(Logger, "changement de statut du projet");
+            Snackbar.Add($"Statut du projet mis à jour vers {newStatus}.", Severity.Success);
+            await LoadAsync();
+        }
+        catch (HttpRequestException ex)
+        {
+            Logger.LogError(ex, "Échec du changement de statut du projet {ProjectId}", ProjectId);
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    private void GoBack() => NavigationManager.NavigateTo("/projects");
+
+    private static Color StatusColor(ProjectStatus status) => status switch
+    {
+        ProjectStatus.Hypothesis => Color.Default,
+        ProjectStatus.Quoted => Color.Info,
+        ProjectStatus.Signed => Color.Primary,
+        ProjectStatus.OnGoing => Color.Success,
+        ProjectStatus.OnHold => Color.Warning,
+        ProjectStatus.Completed => Color.Success,
+        ProjectStatus.Cancelled => Color.Error,
+        ProjectStatus.Lost => Color.Error,
+        _ => Color.Default
+    };
+
+    private sealed record ProjectDetailVm(
+        Guid Id, string Name, string Code, ProjectStatus Status, List<ProjectStatus> AllowedNextStatuses,
+        bool ConsumesCapacity, bool IsArchived, Guid ManagerId, decimal EstimatedMd, decimal ActualMd,
+        decimal RemainingMd, decimal VarianceMd, decimal EstimateAtCompletion,
+        List<StudySummaryVm> Studies, List<DepartmentChargeVm> DepartmentCharges);
+
+    private sealed record StudySummaryVm(Guid Id, string Code, Department Department, StudyStatus Status, DateOnly TargetDate, decimal EstimatedMd, decimal ActualMd, decimal VarianceMd);
+    private sealed record DepartmentChargeVm(Department Department, decimal ActualMd);
+}

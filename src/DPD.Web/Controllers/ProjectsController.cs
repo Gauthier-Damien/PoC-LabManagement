@@ -1,5 +1,6 @@
 using DPD.Application.Modules.Projects.Commands.ChangeProjectStatus;
 using DPD.Application.Modules.Projects.Commands.CreateProject;
+using DPD.Application.Modules.Projects.Queries.GetProjectById;
 using DPD.Application.Modules.Projects.Queries.GetProjectPortfolio;
 using DPD.Domain.Enums;
 using DPD.Web.Authorization;
@@ -22,9 +23,19 @@ public sealed class ProjectsController : ControllerBase
     }
 
     [HttpGet]
-    public Task<IReadOnlyCollection<ProjectPortfolioItemDto>> Get([FromQuery] int page = 1, [FromQuery] int pageSize = 25)
+    public async Task<ActionResult<IReadOnlyCollection<ProjectPortfolioItemDto>>> Get([FromQuery] int page = 1, [FromQuery] int pageSize = 25)
     {
-        return _mediator.Send(new GetProjectPortfolioQuery(page, pageSize));
+        var result = await _mediator.Send(new GetProjectPortfolioQuery(page, pageSize));
+        Response.Headers.Append("X-Total-Count", result.TotalCount.ToString());
+        Response.Headers.Append("X-Total-Pages", result.TotalPages.ToString());
+        return Ok(result.Items);
+    }
+
+    [HttpGet("{id:guid}")]
+    public async Task<ActionResult<ProjectDetailDto>> GetById(Guid id)
+    {
+        var result = await _mediator.Send(new GetProjectByIdQuery(id));
+        return Ok(result);
     }
 
     [HttpPost]

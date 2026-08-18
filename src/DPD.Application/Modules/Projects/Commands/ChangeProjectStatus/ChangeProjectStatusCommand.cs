@@ -5,7 +5,10 @@ using MediatR;
 
 namespace DPD.Application.Modules.Projects.Commands.ChangeProjectStatus;
 
-public sealed record ChangeProjectStatusCommand(Guid ProjectId, ProjectStatus Status) : IRequest;
+public sealed record ChangeProjectStatusCommand(Guid ProjectId, ProjectStatus Status) : IRequest, IRequireRoles
+{
+    public IReadOnlyCollection<string> AllowedRoles => ["SD", "Manager", "Admin"];
+}
 
 public sealed class ChangeProjectStatusCommandHandler : IRequestHandler<ChangeProjectStatusCommand>
 {

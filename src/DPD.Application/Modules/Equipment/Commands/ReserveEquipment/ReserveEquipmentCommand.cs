@@ -6,7 +6,10 @@ using MediatR;
 
 namespace DPD.Application.Modules.Equipment.Commands.ReserveEquipment;
 
-public sealed record ReserveEquipmentCommand(Guid EquipmentId, Guid ResourceId, DateTimeOffset StartTime, DateTimeOffset EndTime, string Purpose) : IRequest<Guid>;
+public sealed record ReserveEquipmentCommand(Guid EquipmentId, Guid ResourceId, DateTimeOffset StartTime, DateTimeOffset EndTime, string Purpose) : IRequest<Guid>, IRequireRoles
+{
+    public IReadOnlyCollection<string> AllowedRoles => ["Scientist", "Manager", "Admin", "PrincipalInvestigator", "StandardUser"];
+}
 
 public sealed class ReserveEquipmentCommandHandler : IRequestHandler<ReserveEquipmentCommand, Guid>
 {

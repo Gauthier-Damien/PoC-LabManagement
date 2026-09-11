@@ -73,6 +73,12 @@ public sealed class AuditInterceptor : SaveChangesInterceptor
         {
             entity.UpdatedAt = now;
             entity.UpdatedBy = _userService.UserName;
+
+            // Contournement PoC SQLite : un nouveau jeton est assigné à chaque modification. EF Core
+            // compare la valeur ORIGINALE (chargée en mémoire) à celle en base dans la clause WHERE de
+            // l'UPDATE généré ; si un autre utilisateur a déjà modifié la ligne entre-temps, 0 ligne est
+            // affectée et une DbUpdateConcurrencyException est levée (cf. GlobalExceptionMiddleware -> 409).
+            entity.ConcurrencyStamp = Guid.NewGuid();
             return;
         }
 

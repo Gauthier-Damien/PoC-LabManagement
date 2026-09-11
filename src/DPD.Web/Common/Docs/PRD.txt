@@ -1,0 +1,450 @@
+﻿
+Product Requirements Document (PRD) 
+Version : 1.0
+Date : Juillet 2026
+
+1.Executive Summary & Vision Produit
+Le département DPD ambitionne de moderniser son système de suivi des activités en remplaçant l'ensemble de ses fichiers Excel historiques par une plateforme applicative unique et intégrée. Ce projet stratégique vise à centraliser la gestion des ressources, des équipements, des temps passés, des projets et de la maintenance. Ce document définit les exigences fonctionnelles, les règles métier, ainsi que les choix d'architecture (SAD/ADR) pour assurer un développement scalable, sécurisé et conforme aux normes de l'industrie.
+1.1 Objectifs Métiers Mesurables (KPI Stratégiques)
+Objectif
+KPI (Mesure du succès)
+Réduire la dépendance à Excel
+100% des plannings (ressources et équipements) gérés dans la plateforme d'ici 6 mois.
+Améliorer la traçabilité et la compliance
+100% des modifications historisées avec un Audit Trail conforme GxP.
+Réduire le temps de reporting
+-80% de temps passé sur la consolidation mensuelle des reportings.
+Optimiser l'utilisation des équipements
+Augmenter le taux d'utilisation déclaré de +15% sur la première année.
+2. Contexte et Stratégie de Déploiement
+Le projet s'inscrit dans une démarche de digitalisation progressive avec des contraintes techniques et budgétaires précises :
+Phase 1 (PoC) : Réalisation d'une preuve de concept en moins d'un mois, gratuitement, sur un poste personnel hors domaine, nécessitant une architecture légère.
+Phase 2 (Cible de Production) : Déploiement sur une infrastructure d'entreprise Microsoft incluant Windows Server, IIS, SQL Server et Microsoft Entra ID pour la gestion des identités.
+3. Parties Prenantes (Stakeholders)
+L'authentification s'appuiera sur Microsoft Entra ID et la plateforme utilisera un modèle RBAC (Role-Based Access Control) pour gérer les permissions fines.
+Acteur / Rôle
+Responsabilités Principales
+Collaborateurs (Scientist / Lab Staff)
+Saisie des temps (Time Tracking), réservation d'équipements, consultation des plannings.
+Manager (Resource Manager)
+Réalisation du planning  hebdomadaire, suivi de la capacité de son équipe, anticipation des recrutements, établissement du budget annuel maintenance du parc des équipements.
+Responsable Département
+Arbitrage capacitaire global, vision consolidée des budgets et des ressources.
+Study Director (SD)
+Gestion des projets et études clients, responsable du respect du planning de l’étude, suivi de l'exécution et de la charge (MD).
+Principal Investigator (PI)
+Gestion d'une étude spécifique au sein d'un projet.
+Responsable Équipement
+Gestion de l’équipement, des contrats de maintenance, suivi du statut et des indisponibilités.
+Administrateur
+Paramétrage système, gestion des référentiels (compétences, statuts).
+4. Personas
+Persona 1 : Resource Manager (Manager)
+Objectifs : Optimiser la capacité de son équipe, équilibrer la charge de travail, anticiper les besoins en recrutement. Avoir une vision globale de l’ensemble des activités de développement.
+Axes d’améliorations : Utilisation de multiples fichiers Excel qui ne permettent pas d’avoir une vision globale générale des activités. Nécessité d’avoir des outils simplifiés pour avoir accès aux données des ressources du laboratoire, des équipements et de la planification des activités.
+Persona 2 : Scientist (Collaborateur)
+Objectifs : Déclarer son temps de manière fluide, réserver un équipement rapidement pour ses expériences, avoir accès à un planning simplifié
+Axes d’améliorations : Processus de réservation des équipements complexe, risques de conflits lors de la réservation.
+Persona 3 : Study Director (SD)
+Objectifs : Piloter le cycle de vie de ses projets (de Hypothesis à Completed), suivre l'avancement budgétaire et la charge des ressources.
+Axes d’améliorations : Manque de visibilité en temps réel sur les temps imputés par les équipes sur ses projets, difficulté à estimer la charge restante.
+Persona 4 : Responsable Équipement
+Objectifs : Maintenir le parc matériel opérationnel, anticiper les maintenances préventives.
+Axes d’amélioration : Suivi manuel des dates de requalification, absence d'alertes automatiques avant date de requalification périodique.
+5. Analyse Métier : Modules Principaux
+La plateforme s'articule autour de 10 modules fonctionnels :
+Resource Planning 
+Capacity Planning 
+Portfolio Management 
+Project & Study Management
+Equipment Scheduling
+Asset Lifecycle Management
+Time Tracking
+Maintenance Contract Management
+Maintenance Budget Management
+Reporting & KPI
+Administration
+Audit & Compliance
+6. Règles Métier Structurantes
+6.1 Gestion des Ressources
+Calcul du FTE (Full-Time Equivalent) : 1 FTE = 1 équivalent temps plein (ex: 35h/semaine). Un employé à 80% aura un FTE de 0.8.
+Gestion des arrivées/départs : La capacité d'une ressource est nulle avant sa date d'arrivée et après sa date de départ contractuelle. Les ressources ne sont jamais supprimées physiquement (Soft Delete).
+Historisation : Toute modification du profil RH (changement de manager, de département) génère une nouvelle entrée dans l'Audit Trail sans altérer les données passées.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+6.2 Capacity Planning
+Horizon de planification : Projections sur 3, 6, 12 et 24 mois.
+Formule de Calcul : Capacité théorique = FTE × jours ouvrés
+Capacité nette = Capacité théorique - Congés
+- RTT
+- Absences
+- Formation
+- Activités internes
+- Support laboratoire ou autre service
+La Capacité doit être calculée :
+Heures
+Jours
+Man-Days (MD)
+FTE
+Les calculs doivent être disponibles à la semaine, mois, trimestre et à l’année. 
+6.3 Time Tracking
+Workflow : Les feuilles de temps suivent un cycle précis : 
+
+
+Verrouillage : Une fois le statut "Locked" atteint (fin de mois clôturée), aucune modification n'est permise sans l'intervention exceptionnelle d'un Administrateur, qui générera une entrée critique dans l'Audit Trail.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+6.6 Gestion des Études 
+Chaque projet peut contenir plusieurs études.
+
+Exemple :
+
+LM028 (numéro du projet)
+├─ ST01 (numéro d’étude)
+├─ ST02
+├─ ST03
+
+Chaque étude possède :
+Projet Parent (LM0XX)
+Code Étude (ST0X)
+Responsable
+Département
+Statut
+Date cible
+Date réalisation
+Charge MD Estimée
+Charge MD Réalisée
+Charge Restante
+ReDo
+Equipements CQAs impliqués
+Commentaires
+
+
+Statuts Étude:
+
+
+
+
+
+
+
+
+
+
+
+
+6.4 Cycle de vie des Projets
+Statuts obligatoires : Les projets transitent par les états suivants : 
+
+Règles :
+Seuls les projets Signed et On Going consomment officiellement de la capacité.
+Les projets Hypothesis et Quoted alimentent les simulations de charge.
+Les projets On Hold conservent leur historique mais ne génèrent plus de nouvelle charge.
+Les projets Completed, Cancelled ou lost deviennent archivables. 
+6.5 Réservation d'Équipement
+Priorités et conflits : Un équipement en statut "Maintenance" ne peut accepter aucune nouvelle réservation. Les conflits horaires sont bloqués informatiquement à la saisie.
+6.7 Contrôle des Charges Projets
+Pour Chaque projet et chaque étude :
+MD Estimés
+MD Réalisés
+MD Restants
+Ecart
+Projection Fin de Projet
+
+Formules :
+
+MD Restants = MD Estimés – MD Réalisés
+
+Ecart = MD Réalisés – MD Estimés
+
+Projection Finale = MD Réalisés + MD Restants Prévisionnels
+
+
+
+
+
+
+
+
+6.8 Repartition Departmental
+Chaque charge doit être affectée à un département :
+AD
+FPD
+MSI
+Le Système calcule automatiquement :
+Charge AD
+Charge FPD
+Charge MSI
+Charge Totale 
+Pour chaque projet :
+Ratio AD/FPD
+Ratio AD/MSI
+Ratio FPD/MSI
+
+Ces valeurs doivent être visibles dans les reportings de portefeuille.
+
+6.9 Asset Lifecycle
+Chaque équipement possède :
+
+Date installation
+Date mise en service
+Date fin garantie
+Durée garantie
+Prix acquisition
+Coût maintenance cumulé
+TCO
+Un Responsable
+Un Responsable Backup
+6.10 Gestion Budget Maintenance
+Budget Annuel
+Prévision N+1
+Prévision N+2
+Contrats
+Devis
+Renouvellements
+Contact fournisseur
+ 
+Formule :
+Budget Maintenance = Contrats +Interventions
+
+7. User Stories & Critères d'Acceptation
+Module : Time Tracking
+En tant que Manager, je souhaite valider ou rejeter les feuilles de temps soumises par mon équipe afin de garantir l'exactitude du reporting financier.Critères d'acceptation (BDD) : - Given une feuille de temps soumise par un collaborateur - When le manager clique sur "Approuver"- Then le statut de la feuille devient "Approved" et la donnée est verrouillée pour le collaborateur.
+En tant que Laborantin, je souhaite saisir mes heures quotidiennement sur les études assignées afin de justifier la charge de travail.
+Module : Project Management
+En tant que Study Director (SD), je souhaite modifier le statut d'un projet de "Hypothesis" à "Quoted" et "Quoted" à "Signed" afin de débloquer l'allocation des ressources.Critères d'acceptation (BDD) :Given un projet en statut "Hypothesis"When les critères budgétaires sont validés et que le SD approuveThen le statut devient "Quoted / Signed" et l'historique trace ce changement.
+8. Workflows Métier 
+8.1 Workflow de validation des temps (Time Tracking)
+
+Note : Une feuille de temps rejetée retourne à son auteur avec commentaire obligatoire du valideur.
+
+8.2 Workflow du Cycle de Vie Projet
+
+9. Catalogue des KPI (Indicateurs de Performance)
+Domaine
+KPI
+Formule de calcul
+Objectif d'analyse
+Ressources
+Taux d'occupation
+Temps imputé validé / Capacité disponible × 100
+Détecter surcharge ou sous-charge
+Ressources
+Disponibilité résiduelle
+Capacité disponible − Charge affectée
+Identifier la capacité disponible
+Ressources
+FTE consommé
+MD consommés / MD théoriques FTE
+Mesurer l'utilisation réelle des équipes
+Capacity Planning
+Taux de saturation futur
+Charge future / Capacité future × 100
+Identifier les tensions futures
+Capacity Planning
+Capacity Gap
+Capacité future − Charge future
+Dimensionner les recrutements
+Capacity Planning
+Utilisation prévisionnelle
+Charge projetée / Capacité projetée × 100
+Prévoir les besoins à 3/6/12/24 mois
+Projet
+MD estimés
+Somme des MD prévus
+Référence budgétaire du projet
+Projet
+MD réalisés
+Somme des MD validés
+Mesurer la consommation réelle
+Projet
+MD restants
+MD estimés − MD réalisés
+Mesurer l'effort restant
+Projet
+Écart projet
+MD réalisés − MD estimés
+Identifier les dérives
+Projet
+Taux d'avancement
+MD réalisés / MD estimés × 100
+Mesurer la progression réelle
+Projet
+EAC (Estimate At Completion)
+MD réalisés + MD restants prévisionnels
+Estimer la charge finale
+Études
+Charge étude
+Somme des MD de l'étude
+Suivre l'effort par étude
+Études
+Écart étude
+MD réalisés étude − MD estimés étude
+Détecter les dérives d'étude
+Études
+Retard étude
+Date réelle − Date cible
+Mesurer les retards
+Portfolio
+Charge pondérée
+Charge estimée × Probabilité
+Intégrer les opportunités dans la prévision
+Portfolio
+Valeur pipeline
+Σ(Charge × Probabilité)
+Mesurer l'impact futur du portefeuille
+Portfolio
+Risque capacitaire
+Charge pondérée / Capacité future
+Identifier les risques de surcharge
+Timesheet
+Taux de saisie
+Temps déclaré / Temps attendu × 100
+Contrôler la complétude des feuilles
+Timesheet
+Taux de validation
+Temps approuvé / Temps déclaré × 100
+Contrôler la qualité des imputations
+Timesheet
+Temps non projet
+Temps hors projet / Temps total × 100
+Mesurer les activités indirectes
+Équipement
+Taux d'utilisation
+Temps réservé / Temps disponible × 100
+Suivre l'occupation des équipements
+Équipement
+Disponibilité
+Temps disponible / Temps total × 100
+Mesurer la disponibilité opérationnelle
+Équipement
+Saturation
+Temps réservé / Capacité maximale × 100
+Détecter les goulots d'étranglement
+Équipement
+Temps d'arrêt
+Temps maintenance + Temps panne
+Mesurer l'impact des indisponibilités
+Équipement
+MTBF
+Temps de fonctionnement / Nombre de pannes
+Mesurer la fiabilité
+Équipement
+MTTR
+Temps total réparation / Nombre d'interventions
+Mesurer l'efficacité des réparations
+Maintenance
+Couverture contrats
+Équipements sous contrat / Équipements critiques × 100
+Mesurer la couverture maintenance
+Maintenance
+Budget consommé
+Dépenses réalisées / Budget annuel × 100
+Suivre la consommation budgétaire
+Maintenance
+Écart budget
+Budget réel − Budget prévisionnel
+Identifier les dépassements
+Maintenance
+Contrats à renouveler
+Nombre de contrats expirant sous 90 jours
+Anticiper les renouvellements
+Maintenance
+Coût maintenance équipement
+Coût maintenance annuel / Nombre équipements
+Comparer les coûts du parc
+Maintenance
+TCO
+Acquisition + Maintenance + Qualification + Calibration
+Mesurer le coût complet d'un équipement
+Financier
+Coût projet
+MD consommés × Coût journalier standard
+Estimer le coût réel des projets
+Financier
+Répartition AD
+MD AD / MD Total × 100
+Suivre la charge AD
+Financier
+Répartition FPD
+MD FPD / MD Total × 100
+Suivre la charge FPD
+Financier
+Répartition MSI
+MD MSI / MD Total × 100
+Suivre la charge MSI
+Financier
+Ratio AD/FPD
+MD AD / MD FPD
+Retrouver l'indicateur historique Excel
+10. Exigences Fonctionnelles (MoSCoW)
+Priorité
+Fonctionnalité / Exigence
+Must Have
+Gestion centralisée des collaborateurs (FTE, compétences) et des projets (Hypothesis à Lost).
+Must Have
+Suivi des feuilles de temps avec workflow de validation (Manager, Département).
+Must Have
+Historisation complète sans suppression physique (Soft Delete obligatoire).
+Should Have
+Capacity planning avec projections sur 3, 6, 12 et 24 mois.
+Should Have
+Alertes automatisées (Surcharge de capacité, Maintenance équipement J-30/J-60).
+Could Have
+Tableaux de bord financiers prévisionnels et simulations de recrutement.
+11. Exigences Non Fonctionnelles & Contraintes Réglementaires
+11.1 Sécurité, Conformité et Contraintes Réglementaires
+Réglementation GxP & ISO 17025: Le système doit être validé selon les normes de qualité de l'industrie (Validation GxP).
+Audit Trail : Toute modification (création, modification, suppression logique) doit faire l'objet d'un suivi strict enregistrant : l'ancienne valeur, la nouvelle valeur, l'utilisateur, la date et l'heure précise.
+Conservation des données et Archivage : Les données doivent être conservées sur une période minimale réglementaire (ex: 10 ans) avant archivage.
+Signature Électronique : Pour les validations finales de rapports (si applicable ultérieurement), le système devra intégrer une traçabilité équivalente à une signature approuvée (CFR 21 Part 11).
+11.2 Performance, Volumétrie et Disponibilité
+Disponibilité : Le système doit garantir un taux de disponibilité de 99.5% pendant les heures ouvrées de l'entreprise.
+Performance : Le temps de réponse de l'application pour l'affichage d'un tableau de bord ou l'enregistrement d'une donnée doit être strictement inférieur à 2 secondes.
+Volumétrie estimée :
+Nombre d'utilisateurs actifs quotidiens : 30 à 50.
+Nombre de projets simultanés : 40 à 60.
+Nombre d'études actives : 100 à 250.
+Nombre de TimeEntries (lignes de temps) générées par an : 30 000 à 60 000
+12. Architecture et Modèle de Données (SAD / ADR)
+12.1 Choix Technologiques (Architecture Décisions)
+Pour répondre à la contrainte d'un PoC rapide (hors domaine) puis d'un déploiement en production :
+ADR 001 - Monolithe Modulaire (Clean Architecture) : Découpage logique en domaines métier pour livrer rapidement (< 1 mois) tout en préparant l'évolutivité. L'approche microservices a été rejetée.
+ADR 002 - Blazor Web App : Choisi pour unifier le code client/serveur, capitaliser sur l'expertise C# de l'équipe et éviter la gestion d'une double stack.
+ADR 003 - Entity Framework Core : Utilisé avec des Intercepteurs pour injecter automatiquement l'Audit Trail et forcer le Soft Delete sur chaque entité, sans alourdir la logique métier.
+
+12.2 Modèle de Données Enrichi (UML)
+Le modèle gère l'ensemble des modules (ressources, projets, équipements, temps) sans aucune suppression physique.
+
+Note : Les intercepteurs EF Core captureront automatiquement les anciennes et nouvelles valeurs de chaque modification pour l'Audit Trail.
+13. Roadmap Prévisionnelle
+Semaines 1-4 : Réalisation du PoC local (Mise en place de l'Architecture, Modèle de données CRUD, Mock d'Authentification).
+Mois 2-3 : Développement du MVP (Modules Time Tracking, Project & Resource Management).
+Mois 4-5 : Déploiement Cible de Production (Intégration Entra ID, IIS, SQL Server).
+

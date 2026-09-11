@@ -4,7 +4,10 @@ using MediatR;
 
 namespace DPD.Application.Modules.TimeTracking.Commands.ApproveTimesheet;
 
-public sealed record ApproveTimesheetCommand(Guid TimeEntryId, Guid ApproverId) : IRequest;
+public sealed record ApproveTimesheetCommand(Guid TimeEntryId, Guid ApproverId) : IRequest, IRequireRoles
+{
+    public IReadOnlyCollection<string> AllowedRoles => ["Manager", "Admin", "DepartmentResponsible"];
+}
 
 public sealed class ApproveTimesheetCommandHandler : IRequestHandler<ApproveTimesheetCommand>
 {

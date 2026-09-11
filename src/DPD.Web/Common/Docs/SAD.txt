@@ -1,0 +1,91 @@
+﻿
+Software Architecture Document (SAD)
+Version : 1.0
+Date : Juillet 2026
+1. Diagrammes d'Architecture (C4 Model)
+L'architecture est définie selon le modèle C4 (Context & Container), détaillant les responsabilités et interactions.
+1.1 Diagramme de Contexte (Niveau 1)
+
+
+1.2 Diagramme de Conteneurs (Niveau 2)
+
+2. Architecture des Modules Métier (Logical Architecture / Module View)
+En complément de la Clean Architecture, l'organisation interne du monolithe modulaire définit des dépendances strictes entre les modules fonctionnels :
+
+3. Découpage en Couches (Clean Architecture)
+
+4. Modèle de Données Complet (ERD Enrichi)
+Le modèle intègre l'ensemble du périmètre métier demandé (compétences, réservations, contrats, audit et rôles RBAC) :
+4.1 Diagramme 1 - Gestion des ressources, rôles, projets et suivi du temps
+
+
+4.2 Diagramme 2 - Gestion des équipements et maintenance
+
+
+
+
+
+
+5. Sécurité, Authentification et Matrice RBAC
+5.1 Architecture de Sécurité (OIDC & Entra ID)
+
+5.2 Matrice de Contrôle d'Accès (RBAC)
+Action / Fonctionnalité
+User (Scientist)
+Manager
+Admin
+Create Time Entry
+X
+X
+X
+Validate Time Entry
+
+X
+X
+Reserve Equipment
+X
+X
+X
+Manage Maintenance Contracts
+
+
+X
+Manage Users & Roles
+
+
+X
+6. Spécification Détaillée de l'Audit Trail (Conformité GxP)
+
+7. Diagrammes de Séquence (Flux Principaux)
+7.1 Soumission d'une Timesheet
+
+7.2 Validation d'une Timesheet
+
+7.3 Réservation d'un Équipement
+
+
+8. Gestion des Erreurs (Error Handling Strategy)
+
+
+
+9. Logging, Observabilité et Notifications
+9.1 Logging applicatif (Serilog)
+
+9.2 Supervision et Health Checks
+
+
+9.3 Notifications automatiques et traitements asynchrones
+10. Architecture de Déploiement et Migration
+10.1 Évolution de l'Infrastructure
+10.1.1 Architecture MVP
+
+10.1.2 Architecture cible Scale-Out
+
+10.2 Stratégie de Migration des Données Excel
+
+11. Standards de Développement et Assurance Qualité
+11.1 Architecture de développement
+
+11.2 Assurance Qualité
+
+

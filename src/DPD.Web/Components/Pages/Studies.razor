@@ -1,0 +1,185 @@
+@page "/studies"
+@using DPD.Web.Common
+@using DPD.Domain.Enums
+@inject HttpClient Http
+@inject ISnackbar Snackbar
+@inject ILogger<Studies> Logger
+
+<PageTitle>Studies</PageTitle>
+
+<h1>Gestion des Études</h1>
+
+<p>Créer des études rattachées à un projet et suivre leur charge (MD Estimés / Réalisés / Restants / EAC).</p>
+
+<div class="row g-3">
+    <div class="col-md-6">
+        <EditForm Model="createStudy" OnValidSubmit="CreateStudyAsync">
+            <DataAnnotationsValidator />
+            <MudSelect T="Guid" Label="Projet" @bind-Value="createStudy.ProjectId">
+                @foreach (var item in projects)
+                {
+                    <MudSelectItem Value="item.Id">@item.Name</MudSelectItem>
+                }
+            </MudSelect>
+            <MudTextField @bind-Value="createStudy.Code" Label="Code Étude (ex: ST01)" Required="true" />
+            <MudSelect T="Guid" Label="Study Director" @bind-Value="createStudy.StudyDirectorId">
+                @foreach (var item in resources)
+                {
+                    <MudSelectItem Value="item.Id">@item.Name</MudSelectItem>
+                }
+            </MudSelect>
+            <MudSelect T="Department" Label="Département" @bind-Value="createStudy.Department">
+                @foreach (var dept in Enum.GetValues<Department>())
+                {
+                    <MudSelectItem Value="dept">@dept</MudSelectItem>
+                }
+            </MudSelect>
+            <MudDatePicker Label="Date Cible" DateChanged="OnTargetDateChanged" Date="targetDate" />
+            <MudNumericField T="decimal" @bind-Value="createStudy.EstimatedMd" Label="Charge MD Estimée" Min="0" Required="true" />
+            <MudButton Color="Color.Primary" Variant="Variant.Filled" ButtonType="ButtonType.Submit">Créer l'étude</MudButton>
+        </EditForm>
+    </div>
+</div>
+
+<MudDivider Class="my-3" />
+
+<p class="text-muted">Total : @totalCount étude(s) — Page @currentPage / @Math.Max(totalPages, 1)</p>
+
+<MudTable Items="studies" Dense="true" Hover="true">
+    <HeaderContent>
+        <MudTh>Code</MudTh>
+        <MudTh>Département</MudTh>
+        <MudTh>Statut</MudTh>
+        <MudTh>Date Cible</MudTh>
+        <MudTh>MD Estimés</MudTh>
+        <MudTh>MD Réalisés</MudTh>
+        <MudTh>MD Restants</MudTh>
+        <MudTh>Écart</MudTh>
+        <MudTh>EAC</MudTh>
+        <MudTh>Action</MudTh>
+    </HeaderContent>
+    <RowTemplate>
+        <MudTd DataLabel="Code">@context.Code</MudTd>
+        <MudTd DataLabel="Département">@context.Department</MudTd>
+        <MudTd DataLabel="Statut">@context.Status</MudTd>
+        <MudTd DataLabel="Date Cible">@context.TargetDate</MudTd>
+        <MudTd DataLabel="Estimés">@context.EstimatedMd</MudTd>
+        <MudTd DataLabel="Réalisés">@context.ActualMd</MudTd>
+        <MudTd DataLabel="Restants">@context.RemainingMd</MudTd>
+        <MudTd DataLabel="Écart">@context.VarianceMd</MudTd>
+        <MudTd DataLabel="EAC">@context.EstimateAtCompletion</MudTd>
+        <MudTd DataLabel="Action">
+            @if (context.Status is StudyStatus.Planned or StudyStatus.InProgress)
+            {
+                <MudButton Size="Size.Small" OnClick="() => AdvanceStatusAsync(context.Id, context.Status)">
+                    @(context.Status == StudyStatus.Planned ? "Démarrer" : "Terminer")
+                </MudButton>
+            }
+        </MudTd>
+    </RowTemplate>
+</MudTable>
+
+<div class="d-flex gap-2 mt-2">
+    <MudButton Disabled="currentPage <= 1" OnClick="() => ChangePageAsync(currentPage - 1)">Précédent</MudButton>
+    <MudButton Disabled="currentPage >= totalPages" OnClick="() => ChangePageAsync(currentPage + 1)">Suivant</MudButton>
+</div>
+
+@code {
+    private readonly CreateStudyVm createStudy = new();
+    private DateTime? targetDate = DateTime.UtcNow.Date.AddMonths(3);
+    private List<StudyVm> studies = [];
+    private List<IdNameVm> projects = [];
+    private List<IdNameVm> resources = [];
+    private int currentPage = 1;
+    private const int PageSize = 25;
+    private int totalCount;
+    private int totalPages;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadReferenceDataAsync();
+        await LoadAsync();
+    }
+
+    private async Task LoadReferenceDataAsync()
+    {
+        projects = await Http.GetFromJsonAsync<List<IdNameVm>>("api/reference/projects") ?? [];
+        resources = await Http.GetFromJsonAsync<List<IdNameVm>>("api/reference/resources") ?? [];
+        if (projects.Count > 0 && createStudy.ProjectId == Guid.Empty) createStudy.ProjectId = projects[0].Id;
+        if (resources.Count > 0 && createStudy.StudyDirectorId == Guid.Empty) createStudy.StudyDirectorId = resources[0].Id;
+    }
+
+    private async Task LoadAsync()
+    {
+        var response = await Http.GetAsync($"api/studies?page={currentPage}&pageSize={PageSize}");
+        await response.EnsureSuccessOrThrowAsync(Logger, "chargement des études");
+        studies = await response.Content.ReadFromJsonAsync<List<StudyVm>>() ?? [];
+        totalCount = int.TryParse(response.Headers.GetValues("X-Total-Count").FirstOrDefault(), out var tc) ? tc : studies.Count;
+        totalPages = int.TryParse(response.Headers.GetValues("X-Total-Pages").FirstOrDefault(), out var tp) ? tp : 1;
+    }
+
+    private async Task ChangePageAsync(int newPage)
+    {
+        currentPage = newPage;
+        await LoadAsync();
+    }
+
+    private void OnTargetDateChanged(DateTime? date)
+    {
+        targetDate = date;
+        createStudy.TargetDate = DateOnly.FromDateTime((date ?? DateTime.UtcNow).Date);
+    }
+
+    private async Task CreateStudyAsync()
+    {
+        try
+        {
+            createStudy.TargetDate = DateOnly.FromDateTime((targetDate ?? DateTime.UtcNow).Date);
+            var response = await Http.PostAsJsonAsync("api/studies", createStudy);
+            await response.EnsureSuccessOrThrowAsync(Logger, "création d'une étude");
+            createStudy.Code = string.Empty;
+            createStudy.EstimatedMd = 0;
+            await LoadAsync();
+            Snackbar.Add("Étude créée avec succès.", Severity.Success);
+        }
+        catch (HttpRequestException ex)
+        {
+            Logger.LogError(ex, "Échec de la création de l'étude");
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    private async Task AdvanceStatusAsync(Guid studyId, StudyStatus currentStatus)
+    {
+        try
+        {
+            var nextStatus = currentStatus == StudyStatus.Planned ? StudyStatus.InProgress : StudyStatus.Completed;
+            var response = await Http.PatchAsJsonAsync($"api/studies/{studyId}/status", new { Status = nextStatus });
+            await response.EnsureSuccessOrThrowAsync(Logger, "changement de statut de l'étude");
+            await LoadAsync();
+            Snackbar.Add("Statut de l'étude mis à jour.", Severity.Success);
+        }
+        catch (HttpRequestException ex)
+        {
+            Logger.LogError(ex, "Échec du changement de statut de l'étude");
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    private sealed class CreateStudyVm
+    {
+        public Guid ProjectId { get; set; }
+        public string Code { get; set; } = string.Empty;
+        public Guid StudyDirectorId { get; set; }
+        public Department Department { get; set; } = Department.AD;
+        public DateOnly TargetDate { get; set; }
+        public decimal EstimatedMd { get; set; }
+    }
+
+    private sealed record StudyVm(
+        Guid Id, Guid ProjectId, string Code, Guid StudyDirectorId, Department Department, StudyStatus Status,
+        DateOnly TargetDate, DateOnly? ActualDate, decimal EstimatedMd, decimal ActualMd, decimal RemainingMd,
+        decimal VarianceMd, decimal EstimateAtCompletion, bool ReDo, string? Comments);
+
+    private sealed record IdNameVm(Guid Id, string Name);
+}

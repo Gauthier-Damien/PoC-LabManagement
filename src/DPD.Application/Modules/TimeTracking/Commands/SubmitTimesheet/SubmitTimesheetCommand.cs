@@ -4,7 +4,10 @@ using MediatR;
 
 namespace DPD.Application.Modules.TimeTracking.Commands.SubmitTimesheet;
 
-public sealed record SubmitTimesheetCommand(Guid ResourceId, Guid StudyId, DateOnly WorkDate, decimal Hours) : IRequest<Guid>;
+public sealed record SubmitTimesheetCommand(Guid ResourceId, Guid StudyId, DateOnly WorkDate, decimal Hours) : IRequest<Guid>, IRequireRoles
+{
+    public IReadOnlyCollection<string> AllowedRoles => ["Scientist", "Manager", "Admin", "StandardUser", "PrincipalInvestigator", "SD"];
+}
 
 public sealed class SubmitTimesheetCommandHandler : IRequestHandler<SubmitTimesheetCommand, Guid>
 {

@@ -18,6 +18,13 @@ public sealed class ProjectRepository : IProjectRepository
         return _db.Projects.FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
     }
 
+    public Task<Project?> FindWithStudiesAsync(Guid id, CancellationToken cancellationToken)
+    {
+        return _db.Projects
+            .Include(p => p.Studies)
+            .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
+    }
+
     public Task<bool> ExistsByCodeAsync(string projectCode, CancellationToken cancellationToken)
     {
         return _db.Projects.AnyAsync(x => x.ProjectCode == projectCode, cancellationToken);
@@ -35,5 +42,10 @@ public sealed class ProjectRepository : IProjectRepository
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .ToListAsync(cancellationToken);
+    }
+
+    public Task<int> CountAsync(CancellationToken cancellationToken)
+    {
+        return _db.Projects.CountAsync(cancellationToken);
     }
 }

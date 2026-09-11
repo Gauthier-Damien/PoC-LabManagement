@@ -29,6 +29,12 @@ public sealed class ReferenceDataController : ControllerBase
         return await _db.Studies.OrderBy(x => x.Code).Select(x => new IdNameDto(x.Id, x.Code)).ToListAsync(cancellationToken);
     }
 
+    [HttpGet("projects")]
+    public async Task<IReadOnlyCollection<IdNameDto>> GetProjects(CancellationToken cancellationToken)
+    {
+        return await _db.Projects.OrderBy(x => x.ProjectCode).Select(x => new IdNameDto(x.Id, x.ProjectCode + " - " + x.Name)).ToListAsync(cancellationToken);
+    }
+
     [HttpGet("equipment")]
     public async Task<IReadOnlyCollection<IdNameDto>> GetEquipment(CancellationToken cancellationToken)
     {

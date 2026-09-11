@@ -59,6 +59,7 @@ public static class AppDbInitializer
             Project = project,
             Code = "ST01",
             StudyDirectorId = manager.Id,
+            Department = Department.FPD,
             TargetDate = DateOnly.FromDateTime(DateTime.UtcNow.AddMonths(3)),
             EstimatedMd = 80,
             ActualMd = 12

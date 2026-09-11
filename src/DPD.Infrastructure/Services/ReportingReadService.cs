@@ -33,6 +33,47 @@ public sealed class ReportingReadService : IReportingReadService
         var maintenanceBudget = maintenanceBudgets.Sum();
         var projection = await _capacity.CalculateAsync([3, 6, 12, 24], cancellationToken);
 
-        return new DashboardDto(resources, projects, activeStudies, reservations, maintenanceBudget, projection);
+        // Répartition départementale (PRD 6.8) : charge = somme des MD réalisés des études par département.
+        // Note : Sum(decimal) n'est pas traduisible en SQL par le provider SQLite ; on récupère les
+        // paires (Department, ActualMd) et on agrège côté client (LINQ to Objects).
+        var studyCharges = await _db.Studies
+            .Select(s => new { s.Department, s.ActualMd })
+            .ToListAsync(cancellationToken);
+
+        var chargeAd = studyCharges.Where(x => x.Department == Department.AD).Sum(x => x.ActualMd);
+        var chargeFpd = studyCharges.Where(x => x.Department == Department.FPD).Sum(x => x.ActualMd);
+        var chargeMsi = studyCharges.Where(x => x.Department == Department.MSI).Sum(x => x.ActualMd);
+        var chargeTotal = chargeAd + chargeFpd + chargeMsi;
+
+        var departmentBreakdown = new DepartmentBreakdownDto(
+            chargeAd,
+            chargeFpd,
+            chargeMsi,
+            chargeTotal,
+            chargeFpd == 0 ? 0 : Math.Round(chargeAd / chargeFpd, 2),
+            chargeMsi == 0 ? 0 : Math.Round(chargeAd / chargeMsi, 2),
+            chargeMsi == 0 ? 0 : Math.Round(chargeFpd / chargeMsi, 2));
+
+        // EAC (Estimate At Completion) au niveau portefeuille = somme des MD réalisés + MD restants prévisionnels de tous les projets actifs.
+        var projectLoads = await _db.Projects
+            .Select(p => new { p.EstimatedMd, p.ActualMd })
+            .ToListAsync(cancellationToken);
+        var portfolioEac = projectLoads.Sum(p => p.ActualMd + Math.Max(0, p.EstimatedMd - p.ActualMd));
+
+        // Contrats à renouveler sous 90 jours (KPI Maintenance).
+        var renewalThreshold = today.AddDays(90);
+        var contractsRenewingSoon = await _db.MaintenanceContracts
+            .CountAsync(c => c.EndDate <= renewalThreshold && c.EndDate >= today, cancellationToken);
+
+        return new DashboardDto(
+            resources,
+            projects,
+            activeStudies,
+            reservations,
+            maintenanceBudget,
+            projection,
+            departmentBreakdown,
+            portfolioEac,
+            contractsRenewingSoon);
     }
 }

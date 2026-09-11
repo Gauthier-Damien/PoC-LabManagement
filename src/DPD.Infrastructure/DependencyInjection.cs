@@ -25,11 +25,24 @@ public static class DependencyInjection
         }
         services.AddScoped<AuditInterceptor>();
 
-        var connectionString = configuration.GetConnectionString("Sqlite") ?? "Data Source=dpd-poc.db";
+        // Cible de production : si une chaîne de connexion SQL Server est configurée, elle est utilisée
+        // et le RowVersion natif (rowversion/timestamp, IsRowVersion()) gère la concurrence.
+        // Sinon (PoC), on retombe sur SQLite avec le jeton applicatif ConcurrencyStamp (Guid) régénéré
+        // par AuditInterceptor et vérifié dans la clause WHERE générée par EF Core.
+        var sqlServerConnectionString = configuration.GetConnectionString("SqlServer");
 
         services.AddDbContext<AppDbContext>((sp, options) =>
         {
-            options.UseSqlite(connectionString);
+            if (!string.IsNullOrWhiteSpace(sqlServerConnectionString))
+            {
+                options.UseSqlServer(sqlServerConnectionString);
+            }
+            else
+            {
+                var connectionString = configuration.GetConnectionString("Sqlite") ?? "Data Source=dpd-poc.db";
+                options.UseSqlite(connectionString);
+            }
+
             options.AddInterceptors(sp.GetRequiredService<AuditInterceptor>());
         });
 

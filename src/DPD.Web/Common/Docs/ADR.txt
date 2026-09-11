@@ -1,0 +1,362 @@
+﻿
+Dossier des Décisions d'Architecture (ADR)
+DPD Operations Management Platform | Version 1.0 — Juillet 2026
+ADR-001 : Choix du Monolithe Modulaire
+Identifiant & Titre
+ADR-001 : Choix du Monolithe Modulaire
+Statut & Date
+Accepté | Juillet 2026
+Contexte & Problématique
+Nécessité de livrer un PoC gratuit en moins d'un mois sur un poste local hors domaine, tout en ciblant une infrastructure d'entreprise Microsoft sous Windows Server et IIS en production.
+Décision Retenue
+Adoption d'une architecture Monolithe Modulaire basée sur Clean Architecture en .NET 8 (C#).  Découpage logique strict des domaines :
+Resources,
+Projects,
+Studies,
+Portfolio,
+TimeTracking,
+CapacityPlanning,
+Equipment,
+AssetLifecycle,
+Maintenance,
+Reporting.
+Alternatives Étudiées
+•  Microservices : Rejetés en raison d'une sur-complexité opérationnelle, d'un overhead réseau important et du besoin d'orchestrateurs (Kubernetes/Docker) incompatibles avec la contrainte IIS à 1 seul pool applicatif.
+•  Monolithe traditionnel Spaghetti : Rejeté pour risque de fort couplage empêchant l'évolutivité future.
+Conséquences & Avantages
+•  Développement très rapide (< 1 mois) pour le PoC.
+•  Déploiement fortement simplifié via un unique pool applicatif IIS.
+•  Séparation claire des responsabilités métier au sein des projets .NET.
+•  Évolutivité préservée pour une extraction future en services indépendants si nécessaire.
+Risques & Mitigations
+•  Risque de couplage accidentel entre modules.
+•  Mitigation : Revues de code strictes, séparation en projets/assemblies distincts (Clean Architecture) et validation continue via SonarQube.
+
+ADR-002 : Framework Front-End Blazor Web App
+Identifiant & Titre
+ADR-002 : Framework Front-End Blazor Web App
+Statut & Date
+Accepté | Juillet 2026
+Contexte & Problématique
+L'équipe possède une forte expertise .NET/C# et doit développer une interface riche de type Single Page Application (SPA) pour gérer les plannings et KPI complexes.
+Décision Retenue
+Utilisation du framework Blazor (Blazor Server pour le PoC, puis Blazor Web App interactif en .NET 8 pour la production).
+Alternatives Étudiées
+•  Angular / React : Rejetés pour éviter l'apprentissage d'une double stack technique (TypeScript/JavaScript + C#) et le surcoût de maintenance d'une couche API REST dédiée au front-end.
+Conséquences & Avantages
+•  Gain massif de productivité grâce à la maîtrise existante de C#.
+•  Partage direct des modèles de données et DTOs entre client et serveur.
+•  Unification de la pile technologique globale du projet.
+Risques & Mitigations
+•  Gestion de l'état et latence potentielle sous Blazor Server si le réseau est instable.
+•  Mitigation : Transition vers le mode Blazor Web App (.NET 8) combinant rendu serveur et WebAssembly/Auto selon les besoins de réactivité.
+
+
+
+
+
+
+
+
+
+ADR-003 : Entity Framework Core, Intercepteurs d'Audit & Soft Delete
+Identifiant & Titre
+ADR-003 : Entity Framework Core, Intercepteurs d'Audit & Soft Delete
+Statut & Date
+Accepté | Juillet 2026
+Contexte & Problématique
+Les exigences réglementaires GxP, ISO 9001 et RGPD imposent une traçabilité intégrale et interdisent strictement toute suppression physique de données métier.
+Décision Retenue
+Choix d'Entity Framework Core (EF Core) enrichi par des intercepteurs SaveChanges (Audit Trail automatique) et des Global Query Filters (Soft Delete via la propriété IsDeleted).
+Alternatives Étudiées
+•  Triggers SQL : Rejetés car trop dépendants du moteur de base de données, compliquant la migration entre SQLite (PoC) et SQL Server (Production).
+•  Dapper : Rejeté car la gestion de l'audit et du filtrage des données supprimées aurait dû être codée manuellement dans chaque requête SQL.
+Conséquences & Avantages
+•  Automation complète du Soft Delete et de la traçabilité au niveau de l'ORM.
+•  Code métier allégé et garanti conforme sans effort répété.
+•  Portabilité parfaite de la base de données de SQLite à SQL Server.
+Risques & Mitigations
+•  Croissance rapide de la taille de la base de données en raison de l'accumulation des données logiquement supprimées et des logs d'audit.
+•  Mitigation : Planification d'un système d'archivage à froid et indexation systématique sur la colonne IsDeleted.
+
+
+
+
+
+
+
+
+ADR-004 : Authentification Centralisée Microsoft Entra ID
+Identifiant & Titre
+ADR-004 : Authentification Centralisée Microsoft Entra ID
+Statut & Date
+Accepté | Juillet 2026
+Contexte & Problématique
+Sécurisation de la plateforme de production au sein de l'écosystème d'entreprise Microsoft tout en permettant une phase de PoC autonome sur poste local hors domaine.
+Décision Retenue
+Adoption de Microsoft Entra ID (anciennement Azure AD) via les protocoles OpenID Connect / OAuth2 pour la production, avec abstraction d'interface (IUserService) pour le PoC.
+Alternatives Étudiées
+•  Gestion d'identités personnalisée (ASP.NET Core Identity / BDD dédiée) : Rejetée pour éviter la maintenance de mots de passe, les risques de sécurité et le manque de SSO d'entreprise.
+Conséquences & Avantages
+•  Single Sign-On (SSO) natif pour les utilisateurs de l'entreprise.
+•  Délégation de la sécurité des identifiants et de l'authentification multi-facteurs (MFA) à l'infrastructure d'entreprise.
+•  Conformité renforcée aux normes de sécurité informatique.
+Risques & Mitigations
+•  Différentiel technique entre la phase PoC hors domaine (Mock Auth) et la production.
+•  Mitigation : Abstraction complète du service utilisateur via l'interface IUserService injectée différemment selon l'environnement.
+
+
+
+
+
+
+
+
+ADR-005 : RBAC & Autorisations par Politiques (Authorization Policies)
+Identifiant & Titre
+ADR-005 : RBAC & Autorisations par Politiques (Authorization Policies)
+Statut & Date
+Accepté | Juillet 2026
+Contexte & Problématique
+Nécessité de gérer des autorisations fines selon 8 rôles distincts (Administrateur, Manager, Responsable Équipement, Responsable Département, SD, PI, Utilisateur Standard, Lecture seule).
+Décision Retenue
+Implémentation d'un contrôle d'accès basé sur les rôles (RBAC) couplé aux Authorization Policies d'ASP.NET Core appliquées au niveau de la couche Présentation (Blazor) et Application (CQRS).
+Alternatives Étudiées
+•  Contrôle d'accès basique uniquement basé sur les claims bruts : Rejeté car difficile à maintenir et source d'erreurs de configuration.
+•  Vérifications conditionnelles codées en dur (IF/ELSE) dans l'UI : Rejetées car peu sécurisées et dispersées.
+Conséquences & Avantages
+•  Gestion centralisée et déclarative des permissions.
+•  Sécurité en profondeur : validation des droits à la fois sur l'IHM et lors de l'exécution des commandes CQRS.
+•  Audits de sécurité simplifiés grâce à une cartographie claire des politiques.
+Risques & Mitigations
+•  Complexité de gestion si le nombre de combinaisons de rôles augmente.
+•  Mitigation : Structuration claire des politiques d'autorisation et attribution stricte des rôles selon le référentiel métier.
+
+
+
+
+
+
+
+
+ADR-006 : Stratégie d'Audit Trail Automatisé
+Identifiant & Titre
+ADR-006 : Stratégie d'Audit Trail Automatisé
+Statut & Date
+Accepté | Juillet 2026
+Contexte & Problématique
+Respect strict des contraintes GxP et ISO 9001 nécessitant la traçabilité de chaque création, modification et suppression logique (Ancienne/Nouvelle valeur, Utilisateur, Horodatage).
+Décision Retenue
+Capturation automatique des modifications via un Intercepteur EF Core personnalisé se déclenchant à chaque appel de SaveChangesAsync et écrivant dans une table dédiée AuditLogs.Les enregistrements de la table AuditLogs sont immuables. Aucune modification ni suppression n'est autorisée, y compris pour les administrateurs applicatifs. Toute consultation est effectuée en lecture seule.
+Alternatives Étudiées
+•  Triggers en base de données SQL : Rejetés car non portables sur SQLite (PoC) et compliqués à corréler avec l'utilisateur applicatif connecté.
+•  Journalisation manuelle dans les services applicatifs : Rejetée car sujette aux oublis des développeurs.
+Conséquences & Avantages
+•  Couverture d'audit à 100% sur toutes les entités sans oubli possible.
+•  Conservation de l'historique complet pour la conformité réglementaire.
+•  Transparence totale pour les développeurs métier.
+Risques & Mitigations
+•  Surcharge de performances lors des écritures massives.
+•  Mitigation : Écriture de l'Audit Log dans la même transaction optimisée et séparation de la lecture des logs pour la couche Reporting.
+
+
+
+
+
+
+
+
+
+ADR-007 : Traitement d'Arrière-plan & Notifications (Background Worker)
+Identifiant & Titre
+ADR-007 : Traitement d'Arrière-plan & Notifications (Background Worker)
+Statut & Date
+Accepté | Juillet 2026
+Contexte & Problématique
+Besoin de générer des alertes automatisées (Surcharge de capacité, fin de maintenance à J-30/J-60) et d'exécuter des calculs lourds de projections de capacité sans bloquer l'IHM.
+Décision Retenue
+Utilisation d'IHostedService / BackgroundWorker dans ASP.NET Core pour la phase MVP, prévoyant une évolution vers Azure Service Bus et un Background Worker dédié lors du Scale-out.
+Alternatives Étudiées
+•  Exécution synchrone pendant les requêtes HTTP/Blazor : Rejetée car elle provoque des ralentissements et freeze de l'interface utilisateur.
+•  Tâches planifiées Cron / Windows Task Scheduler externes : Rejetées pour manque d'intégration avec le contexte et les services .NET de l'application.
+Conséquences & Avantages
+•  Interface utilisateur réactive et fluide.
+•  Garantie de l'envoi ponctuel des alertes et des notifications d'échéance.
+•  Architecture préparée pour la montée en charge future (Scale-out).
+Risques & Mitigations
+•  Ressources partagées entre l'application Blazor et les traitements de fond en MVP.
+•  Mitigation : Programmation des calculs lourds durant les heures creuses et séparation future sur une instance worker dédiée.
+
+
+
+
+
+
+
+
+ADR-008 : Stratégie de Migration des Données (Excel vers SQL)
+Identifiant & Titre
+ADR-008 : Stratégie de Migration des Données (Excel vers SQL)
+Statut & Date
+Accepté | Juillet 2026
+Contexte & Problématique
+Remplacement de l'ensemble des fichiers Excel historiques silotés par la nouvelle plateforme centralisée, nécessitant un transfert fiable des données de ressources, projets et plannings.
+Décision Retenue
+Développement d'un pipeline ETL dédié en C# utilisant FluentValidation pour contrôler, assainir et importer les données Excel historiques dans la BDD SQL Server avec génération d'Audit Trail.
+Alternatives Étudiées
+•  Import direct par requêtes SQL Bulk Insert sans validation : Rejeté pour risque d'introduction de données corrompues et non conformes aux contraintes d'intégrité.
+•  Saisie manuelle des données historiques : Rejetée car chronophage, coûteuse et sujette aux erreurs humaines.
+Conséquences & Avantages
+•  Nettoyage et validation rigoureuse des données avant injection.
+•  Garantie de l'intégrité référentielle dans la base SQL Server.
+•  Historisation traçable dès l'importation initiale.
+Risques & Mitigations
+•  Incohérences ou formats hétérogènes dans les fichiers Excel sources.
+•  Mitigation : Ateliers préalable de cartographie des données avec les Key Users, génération d'un rapport d'erreurs d'import avant validation définitive.
+
+
+
+
+
+
+
+
+ADR-009 : Document Management
+Identifiant & Titre
+ADR-009 : Gestion Documentaire Centralisée
+Statut & Date
+Accepté | Juillet 2026
+Contexte & Problématique
+Le PRD prévoit la gestion de contrats de maintenance, devis, rapports d'intervention, certificats de calibration et documents projets. Ces documents doivent être historisés et accessibles depuis les entités métier
+Décision Retenue
+Implémentation d'un référentiel documentaire unique avec stockage physique des fichiers et métadonnées conservées en base SQL Server via l'entité Document.
+Alternatives Étudiées
+• Stockage BLOB directement en base : rejeté pour limiter la croissance de la base SQL. 
+• Partages réseau sans indexation métier : rejetés pour manque de traçabilité
+Conséquences & Avantages
+• Référencement unique des documents. 
+• Versionning simplifié. 
+• Traçabilité complète. 
+• Alignement avec les exigences qualité
+
+Risques & Mitigations
+• Risque d'augmentation du volume documentaire. 
+• Mitigation : archivage périodique et limitation des formats autorisés.
+
+
+
+
+
+
+
+
+
+
+ADR-010 : Référentiel Fournisseurs
+Identifiant & Titre
+ADR-010 : Référentiel Fournisseurs Unique
+Statut & Date
+Accepté | Juillet 2026
+Contexte & Problématique
+Le module Maintenance Contract Management nécessite la gestion des fournisseurs, contacts, SLA et contrats associés.
+Décision Retenue
+Création d'une entité Supplier centralisée utilisée par les contrats de maintenance et les futurs modules d'achats.
+Alternatives Étudiées
+• Champ texte Vendor dans Contract : rejeté pour duplication de données. 
+• Référentiel externe Excel : rejeté car contraire à l'objectif de centralisation.
+Conséquences & Avantages
+• Unicité des fournisseurs. 
+• Réduction des doublons. 
+• Facilitation du reporting fournisseur.
+Risques & Mitigations
+• Multiplication des fournisseurs historiques. 
+• Mitigation : nettoyage et déduplication lors de la migration.
+
+
+
+
+
+
+
+
+
+
+
+ADR-011 : Allocation Prévisionnelle des Ressources
+Identifiant & Titre
+ADR-011 : Gestion des Allocations Prévisionnelles
+Statut & Date
+Accepté | Juillet 2026
+Contexte & Problématique
+Les modules Capacity Planning et Portfolio Management nécessitent la distinction entre charge prévisionnelle et charge réellement consommée (Timesheets).
+Décision Retenue
+Introduction d'une entité ProjectAllocation distincte des TimeEntries. Les allocations représentent la capacité planifiée tandis que les TimeEntries représentent la consommation réelle.
+Alternatives Étudiées
+• Utilisation exclusive des TimeEntries : rejetée car absence de visibilité prévisionnelle. 
+• Calculs Excel externes : rejetés pour incohérence avec les objectifs du projet.
+Conséquences & Avantages
+• Capacity Planning fiable. 
+• Simulation de recrutement. 
+• Projection des charges à 3, 6, 12 et 24 mois.
+Risques & Mitigations
+• Risque de divergence prévisionnel/réel. 
+• Mitigation : tableaux de bord comparatifs et KPI EAC.
+
+
+
+
+
+
+
+
+
+
+ADR-012 : Protection des Données Personnelles (RGPD)
+Identifiant & Titre
+ADR-012 : Protection des Données Personnelles
+Statut & Date
+Accepté | Juillet 2026
+Contexte & Problématique
+Le système stocke des informations nominatives sur les collaborateurs, managers, responsables et utilisateurs.
+Décision Retenue
+Application des principes de minimisation, limitation de conservation et séparation des identités techniques et métier.
+Alternatives Étudiées
+• Stockage étendu des données RH : rejeté pour limiter l'exposition des données sensibles.
+Conséquences & Avantages
+• Réduction du risque de non-conformité. 
+• Simplification des audits RGPD.
+Risques & Mitigations
+• Risque de conservation excessive. 
+• Mitigation : politique d'archivage et revue annuelle des données.
+
+
+
+
+
+
+
+
+
+
+
+
+ADR-013 : Sauvegarde et Reprise d'Activité
+Identifiant & Titre
+ADR-013 : Sauvegarde et Plan de Reprise
+Statut & Date
+Accepté | Juillet 2026
+Contexte & Problématique
+La plateforme devient le référentiel unique remplaçant plusieurs fichiers Excel critiques. Une perte de données serait fortement impactante sur les activités DPD.
+Décision Retenue
+Mise en œuvre de sauvegardes SQL Server automatisées avec restauration testée périodiquement et procédure de reprise documentée.
+Alternatives Étudiées
+• Sauvegarde manuelle : rejetée pour risque opérationnel élevé. 
+• Sauvegarde uniquement VM : rejetée car insuffisante pour garantir les objectifs de restauration.
+Conséquences & Avantages
+• Réduction du risque de perte de données. 
+• Amélioration de la résilience opérationnelle
+Risques & Mitigations
+• Non-validation des restaurations. 
+• Mitigation : tests réguliers de restauration et exercices PRA.
+
+

@@ -31,4 +31,9 @@ public sealed class TimeEntryRepository : ITimeEntryRepository
             .Take(pageSize)
             .ToListAsync(cancellationToken);
     }
+
+    public Task<int> CountAsync(CancellationToken cancellationToken)
+    {
+        return _db.TimeEntries.CountAsync(cancellationToken);
+    }
 }

@@ -39,20 +39,39 @@
         <MudTh>Work Date</MudTh>
         <MudTh>Hours</MudTh>
         <MudTh>Status</MudTh>
+        <MudTh>Commentaire de rejet</MudTh>
         <MudTh>Action</MudTh>
     </HeaderContent>
     <RowTemplate>
         <MudTd>@context.WorkDate</MudTd>
         <MudTd>@context.Hours</MudTd>
         <MudTd>@context.Status</MudTd>
+        <MudTd>@context.RejectionComment</MudTd>
         <MudTd>
             @if (context.Status == "Submitted")
             {
-                <MudButton Size="Size.Small" OnClick="() => ApproveAsync(context.Id)">Approve</MudButton>
+                <MudButton Size="Size.Small" Color="Color.Success" OnClick="() => ApproveAsync(context.Id)">Approve</MudButton>
+                <MudButton Size="Size.Small" Color="Color.Error" OnClick="() => OpenRejectDialog(context.Id)">Reject</MudButton>
+            }
+            @if (context.Status == "Approved")
+            {
+                <MudButton Size="Size.Small" OnClick="() => LockAsync(context.Id)">Lock</MudButton>
             }
         </MudTd>
     </RowTemplate>
 </MudTable>
+
+@if (rejectingEntryId is not null)
+{
+    <MudPaper Class="pa-4 mt-3" Elevation="2">
+        <p>Motif de rejet (obligatoire) pour la saisie sélectionnée :</p>
+        <MudTextField @bind-Value="rejectionComment" Label="Commentaire" Lines="2" Required="true" />
+        <div class="d-flex gap-2 mt-2">
+            <MudButton Color="Color.Error" OnClick="ConfirmRejectAsync">Confirmer le rejet</MudButton>
+            <MudButton OnClick="CancelReject">Annuler</MudButton>
+        </div>
+    </MudPaper>
+}
 
 @code {
     private readonly SubmitVm submitVm = new();
@@ -118,6 +137,63 @@
         }
     }
 
+    private void OpenRejectDialog(Guid timeEntryId)
+    {
+        rejectingEntryId = timeEntryId;
+        rejectionComment = string.Empty;
+    }
+
+    private void CancelReject()
+    {
+        rejectingEntryId = null;
+        rejectionComment = string.Empty;
+    }
+
+    private async Task ConfirmRejectAsync()
+    {
+        if (rejectingEntryId is not { } timeEntryId)
+        {
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(rejectionComment))
+        {
+            Snackbar.Add("Un commentaire est obligatoire pour rejeter une feuille de temps.", Severity.Warning);
+            return;
+        }
+
+        try
+        {
+            var approverId = resources.FirstOrDefault()?.Id ?? Guid.Empty;
+            var response = await Http.PatchAsJsonAsync($"api/timesheets/{timeEntryId}/reject", new { approverId, comment = rejectionComment });
+            await response.EnsureSuccessOrThrowAsync(Logger, "rejet d'une saisie de temps");
+            CancelReject();
+            await LoadAsync();
+            Snackbar.Add("Saisie de temps rejetée.", Severity.Success);
+        }
+        catch (HttpRequestException ex)
+        {
+            Logger.LogError(ex, "Échec du rejet de la saisie de temps");
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    private async Task LockAsync(Guid timeEntryId)
+    {
+        try
+        {
+            var response = await Http.PatchAsync($"api/timesheets/{timeEntryId}/lock", null);
+            await response.EnsureSuccessOrThrowAsync(Logger, "verrouillage d'une saisie de temps");
+            await LoadAsync();
+            Snackbar.Add("Saisie de temps verrouillée.", Severity.Success);
+        }
+        catch (HttpRequestException ex)
+        {
+            Logger.LogError(ex, "Échec du verrouillage de la saisie de temps (réservé aux administrateurs)");
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
     private sealed class SubmitVm
     {
         public Guid ResourceId { get; set; }
@@ -126,6 +202,9 @@
         public decimal Hours { get; set; }
     }
 
-    private sealed record TimeEntryVm(Guid Id, Guid ResourceId, Guid StudyId, DateOnly WorkDate, decimal Hours, string Status);
+    private Guid? rejectingEntryId;
+    private string rejectionComment = string.Empty;
+
+    private sealed record TimeEntryVm(Guid Id, Guid ResourceId, Guid StudyId, DateOnly WorkDate, decimal Hours, string Status, string? RejectionComment);
     private sealed record IdNameVm(Guid Id, string Name);
 }

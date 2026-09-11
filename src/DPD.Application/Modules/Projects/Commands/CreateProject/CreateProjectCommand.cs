@@ -4,7 +4,10 @@ using MediatR;
 
 namespace DPD.Application.Modules.Projects.Commands.CreateProject;
 
-public sealed record CreateProjectCommand(string Name, string Code, Guid ManagerId, decimal EstimatedMd) : IRequest<Guid>;
+public sealed record CreateProjectCommand(string Name, string Code, Guid ManagerId, decimal EstimatedMd) : IRequest<Guid>, IRequireRoles
+{
+    public IReadOnlyCollection<string> AllowedRoles => ["SD", "Manager", "Admin"];
+}
 
 public sealed class CreateProjectCommandHandler : IRequestHandler<CreateProjectCommand, Guid>
 {

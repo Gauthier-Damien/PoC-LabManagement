@@ -28,6 +28,11 @@ public sealed class GlobalExceptionMiddleware : IMiddleware
         {
             await WriteErrorAsync(context, StatusCodes.Status404NotFound, ex.Message);
         }
+        catch (ForbiddenAccessException ex)
+        {
+            _logger.LogWarning(ex, "Accès refusé (RBAC Application) : {Message}", ex.Message);
+            await WriteErrorAsync(context, StatusCodes.Status403Forbidden, ex.Message);
+        }
         catch (BusinessException ex)
         {
             await WriteErrorAsync(context, StatusCodes.Status422UnprocessableEntity, ex.Message);

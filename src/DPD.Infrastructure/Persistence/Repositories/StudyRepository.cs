@@ -27,4 +27,18 @@ public sealed class StudyRepository : IStudyRepository
     {
         await _db.Studies.AddAsync(study, cancellationToken);
     }
+
+    public async Task<IReadOnlyCollection<Study>> ListAsync(int page, int pageSize, CancellationToken cancellationToken)
+    {
+        return await _db.Studies
+            .OrderBy(x => x.Code)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(cancellationToken);
+    }
+
+    public Task<int> CountAsync(CancellationToken cancellationToken)
+    {
+        return _db.Studies.CountAsync(cancellationToken);
+    }
 }

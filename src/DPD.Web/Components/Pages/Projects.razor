@@ -3,6 +3,7 @@
 @inject HttpClient Http
 @inject ISnackbar Snackbar
 @inject ILogger<Projects> Logger
+@inject NavigationManager NavigationManager
 
 
 <PageTitle>Projects</PageTitle>
@@ -38,6 +39,7 @@
         <MudTh>Status</MudTh>
         <MudTh>Estimated MD</MudTh>
         <MudTh>Actual MD</MudTh>
+        <MudTh>Action</MudTh>
     </HeaderContent>
     <RowTemplate>
         <MudTd DataLabel="Code">@context.Code</MudTd>
@@ -45,6 +47,9 @@
         <MudTd DataLabel="Status">@context.Status</MudTd>
         <MudTd DataLabel="Estimated">@context.EstimatedMd</MudTd>
         <MudTd DataLabel="Actual">@context.ActualMd</MudTd>
+        <MudTd DataLabel="Action">
+            <MudButton Size="Size.Small" Color="Color.Primary" OnClick="() => OpenProject(context.Id)">Ouvrir</MudButton>
+        </MudTd>
     </RowTemplate>
 </MudTable>
 
@@ -67,6 +72,11 @@
         }
 
         projects = await Http.GetFromJsonAsync<List<ProjectVm>>("api/projects?page=1&pageSize=100") ?? [];
+    }
+
+    private void OpenProject(Guid projectId)
+    {
+        NavigationManager.NavigateTo($"/projects/{projectId}");
     }
 
     private async Task CreateProjectAsync()

@@ -4,7 +4,7 @@
   (DPD.Domain.Tests, DPD.Application.Tests, DPD.Integration.Tests). Génère à la fois un rapport
   OpenCover (format consommé par le plugin SonarQube/SonarCloud C# via sonar.cs.opencover.reportsPaths)
   et Cobertura (utile pour d'autres outils, ex. badges de couverture GitHub).
-  Usage : dotnet test --settings coverlet.runsettings --collect:"XPlat Code Coverage"
+  Usage : dotnet test -settings coverlet.runsettings -collect:"XPlat Code Coverage"
 -->
 <RunSettings>
   <DataCollectionRunSettings>

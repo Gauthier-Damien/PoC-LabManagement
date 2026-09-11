@@ -1,6 +1,7 @@
 using DPD.Application.Common.Interfaces;
 using DPD.Application.Common.Models;
 using DPD.Domain.Enums;
+using MapsterMapper;
 using MediatR;
 
 namespace DPD.Application.Modules.Studies.Queries.GetStudies;
@@ -32,10 +33,12 @@ public sealed record StudyListItemDto(
 public sealed class GetStudiesQueryHandler : IRequestHandler<GetStudiesQuery, PaginatedResult<StudyListItemDto>>
 {
     private readonly IStudyRepository _studies;
+    private readonly IMapper _mapper;
 
-    public GetStudiesQueryHandler(IStudyRepository studies)
+    public GetStudiesQueryHandler(IStudyRepository studies, IMapper mapper)
     {
         _studies = studies;
+        _mapper = mapper;
     }
 
     public async Task<PaginatedResult<StudyListItemDto>> Handle(GetStudiesQuery request, CancellationToken cancellationToken)
@@ -43,22 +46,7 @@ public sealed class GetStudiesQueryHandler : IRequestHandler<GetStudiesQuery, Pa
         var studies = await _studies.ListAsync(request.Page, request.PageSize, cancellationToken);
         var total = await _studies.CountAsync(cancellationToken);
 
-        var items = studies.Select(s => new StudyListItemDto(
-            s.Id,
-            s.ProjectId,
-            s.Code,
-            s.StudyDirectorId,
-            s.Department,
-            s.Status,
-            s.TargetDate,
-            s.ActualDate,
-            s.EstimatedMd,
-            s.ActualMd,
-            s.EstimatedMd - s.ActualMd,
-            s.ActualMd - s.EstimatedMd,
-            s.ActualMd + (s.EstimatedMd - s.ActualMd),
-            s.ReDo,
-            s.Comments)).ToList();
+        var items = _mapper.Map<List<StudyListItemDto>>(studies);
 
         return new PaginatedResult<StudyListItemDto>(items, request.Page, request.PageSize, total);
     }

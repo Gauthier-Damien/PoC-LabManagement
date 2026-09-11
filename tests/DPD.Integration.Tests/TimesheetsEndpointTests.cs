@@ -16,11 +16,11 @@ public class TimesheetsEndpointTests : IClassFixture<DpdWebApplicationFactory>
         _factory = factory;
     }
 
-    private async Task<(Guid ResourceId, Guid StudyId)> GetReferenceIdsAsync(HttpClient client)
+    private static async Task<(Guid ResourceId, Guid StudyId)> GetReferenceIdsAsync(HttpClient client)
     {
         var resources = await client.GetFromJsonAsync<List<IdNameDto>>("/api/reference/resources");
         var studies = await client.GetFromJsonAsync<List<IdNameDto>>("/api/reference/studies");
-        return (resources!.First().Id, studies!.First().Id);
+        return (resources![0].Id, studies![0].Id);
     }
 
     [Fact]

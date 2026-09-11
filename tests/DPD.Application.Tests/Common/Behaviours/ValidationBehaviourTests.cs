@@ -9,7 +9,10 @@ namespace DPD.Application.Tests.Common.Behaviours;
 
 public class ValidationBehaviourTests
 {
-    private sealed record SampleRequest(string Name) : IRequest<string>;
+    // Doit être un type public (pas private/internal) : Moq utilise Castle DynamicProxy pour créer
+    // un proxy de IValidator<SampleRequest>, qui nécessite un accès public au paramètre générique
+    // (FluentValidation étant un assembly signé/strong-named, InternalsVisibleTo n'est pas suffisant ici).
+    public sealed record SampleRequest(string Name) : IRequest<string>;
 
     [Fact]
     public async Task Handle_NoValidators_CallsNext()

@@ -1,5 +1,11 @@
 # DPD Operations Management PoC (.NET 8)
 
+[![SonarCloud Analysis](https://github.com/Gauthier-Damien/PoC-LabManagement/actions/workflows/sonarcloud.yml/badge.svg)](https://github.com/Gauthier-Damien/PoC-LabManagement/actions/workflows/sonarcloud.yml)
+[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=Gauthier-Damien_PoC-LabManagement&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=Gauthier-Damien_PoC-LabManagement)
+[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=Gauthier-Damien_PoC-LabManagement&metric=coverage)](https://sonarcloud.io/summary/new_code?id=Gauthier-Damien_PoC-LabManagement)
+[![Bugs](https://sonarcloud.io/api/project_badges/measure?project=Gauthier-Damien_PoC-LabManagement&metric=bugs)](https://sonarcloud.io/summary/new_code?id=Gauthier-Damien_PoC-LabManagement)
+[![Code Smells](https://sonarcloud.io/api/project_badges/measure?project=Gauthier-Damien_PoC-LabManagement&metric=code_smells)](https://sonarcloud.io/summary/new_code?id=Gauthier-Damien_PoC-LabManagement)
+
 Implementation conforme aux documents [Docs/PRD.docx](Docs/PRD.docx), [Docs/SAD.docx](Docs/SAD.docx), [Docs/TDD.docx](Docs/TDD.docx) et [Docs/ADR.docx](Docs/ADR.docx).
 
 ## Decisions appliquees strictement
@@ -105,3 +111,46 @@ Le code est prepare pour:
 - remplacement `UseSqlite` vers `UseSqlServer`
 - swap `MockUserService` vers `EntraIdUserService` via `Authentication:Mode=Entra`
 - hebergement IIS / SQL Server / Entra ID selon TDD
+
+## Qualite de code - Tableau de bord SonarCloud
+
+Le pipeline [`.github/workflows/sonarcloud.yml`](.github/workflows/sonarcloud.yml) est decoupe en
+**4 paliers** distincts, visibles individuellement dans l'onglet *Actions* de GitHub :
+
+1. **Build** - restauration + compilation rapide de la solution (feedback immediat en cas d'erreur).
+2. **Test (matrice)** - 3 jobs paralleles, un par projet de tests (`DPD.Domain.Tests`,
+   `DPD.Application.Tests`, `DPD.Integration.Tests`), avec publication des resultats `.trx` en
+   artefacts telechargeables.
+3. **SonarCloud Quality Analysis** - build instrumente + tests avec couverture (Coverlet, formats
+   OpenCover + Cobertura via [`coverlet.runsettings`](coverlet.runsettings)), puis publication sur
+   le tableau de bord [SonarCloud](https://sonarcloud.io).
+4. **Summary** - recapitulatif final (tableau des statuts + lien direct vers le dashboard) affiche
+   dans le *Job Summary* du run GitHub Actions.
+
+Le pipeline se declenche sur chaque push (`main`/`master`/`Backend`) et sur chaque Pull Request
+(Quality Gate visible directement dans les checks GitHub de la PR).
+
+### Configuration requise (une seule fois)
+
+1. Creer/relier le depot sur [sonarcloud.io](https://sonarcloud.io) (import direct depuis GitHub).
+2. Noter la **cle de projet** (`Project Key`) et l'**organisation** SonarCloud generees.
+3. Generer un token d'analyse (My Account > Security > Generate Token).
+4. Dans GitHub : `Settings > Secrets and variables > Actions` :
+   - Secret **`SONAR_TOKEN`** = le token genere a l'etape precedente.
+   - (Optionnel, sinon valeurs par defaut du workflow utilisees) Variables **`SONAR_PROJECT_KEY`**
+     et **`SONAR_ORGANIZATION`** si elles different de `Gauthier-Damien_PoC-LabManagement` / `gauthier-damien`.
+5. Mettre a jour les URLs des badges ci-dessus si la cle de projet differe.
+
+### Executer l'analyse en local (optionnel)
+
+```powershell
+dotnet tool restore
+dotnet tool run dotnet-sonarscanner begin /k:"<PROJECT_KEY>" /o:"<ORGANIZATION>" /d:sonar.host.url="https://sonarcloud.io" /d:sonar.token="<SONAR_TOKEN>" /d:sonar.cs.opencover.reportsPaths="**/coverage.opencover.xml"
+dotnet build DPD.sln --configuration Release
+dotnet test DPD.sln --configuration Release --settings coverlet.runsettings --collect:"XPlat Code Coverage" --results-directory ./TestResults
+dotnet tool run dotnet-sonarscanner end /d:sonar.token="<SONAR_TOKEN>"
+```
+
+> Pour une instance **SonarQube Server** auto-hebergee plutot que SonarCloud, remplacer uniquement
+> `sonar.host.url` par l'URL de l'instance et retirer le parametre `/o:` (organisation), propre a SonarCloud.
+

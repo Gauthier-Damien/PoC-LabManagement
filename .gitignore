@@ -68,6 +68,9 @@ Generated\ Files/
 [Bb]uild[Ll]og.*
 *.trx
 
+# SonarCloud / SonarQube scanner working directory
+.sonarqube/
+
 # NUnit
 *.VisualState.xml
 TestResult.xml

@@ -17,10 +17,10 @@ public class ProjectsEndpointTests : IClassFixture<DpdWebApplicationFactory>
         _factory = factory;
     }
 
-    private async Task<Guid> GetFirstResourceIdAsync(HttpClient client)
+    private static async Task<Guid> GetFirstResourceIdAsync(HttpClient client)
     {
         var resources = await client.GetFromJsonAsync<List<IdNameDto>>("/api/reference/resources");
-        return resources!.First().Id;
+        return resources![0].Id;
     }
 
     [Fact]
@@ -64,7 +64,7 @@ public class ProjectsEndpointTests : IClassFixture<DpdWebApplicationFactory>
         var detail = await getResponse.Content.ReadFromJsonAsync<ProjectDetailDto>();
         detail!.Code.Should().Be(code);
         detail.Status.Should().Be("Hypothesis");
-        detail.AllowedNextStatuses.Should().BeEquivalentTo(["Quoted", "Cancelled"]);
+        detail.AllowedNextStatuses.Should().BeEquivalentTo("Quoted", "Cancelled");
     }
 
     [Fact]

@@ -23,7 +23,7 @@ public sealed class MockUserService : IUserService
 
     public string UserName => User?.FindFirst(ClaimTypes.Name)?.Value ?? "scientist.local@dpd.test";
 
-    public IReadOnlyCollection<string> Roles =>
+    public IReadOnlyCollection<string> GetRoles() =>
         User?.FindAll(ClaimTypes.Role).Select(c => c.Value).ToArray() ?? ["Scientist"];
 
     public Guid UserId =>

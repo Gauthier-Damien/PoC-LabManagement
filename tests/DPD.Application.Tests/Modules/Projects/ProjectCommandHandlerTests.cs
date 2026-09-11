@@ -66,7 +66,7 @@ public class CreateProjectCommandHandlerTests
     {
         var command = new CreateProjectCommand("N", "C", Guid.NewGuid(), 1);
 
-        command.AllowedRoles.Should().BeEquivalentTo(["SD", "Manager", "Admin"]);
+        command.AllowedRoles.Should().BeEquivalentTo("SD", "Manager", "Admin");
     }
 }
 

@@ -23,11 +23,12 @@ public sealed class AuthorizationBehaviour<TRequest, TResponse> : IPipelineBehav
     {
         if (request is IRequireRoles requireRoles && requireRoles.AllowedRoles.Count > 0)
         {
-            var hasRole = _userService.Roles.Any(role => requireRoles.AllowedRoles.Contains(role, StringComparer.OrdinalIgnoreCase));
+            var roles = _userService.GetRoles();
+            var hasRole = roles.Any(role => requireRoles.AllowedRoles.Contains(role, StringComparer.OrdinalIgnoreCase));
             if (!hasRole)
             {
                 throw new ForbiddenAccessException(
-                    $"L'utilisateur '{_userService.UserName}' (rôles: {string.Join(", ", _userService.Roles)}) " +
+                    $"L'utilisateur '{_userService.UserName}' (rôles: {string.Join(", ", roles)}) " +
                     $"n'a pas l'un des rôles requis pour '{typeof(TRequest).Name}': {string.Join(", ", requireRoles.AllowedRoles)}.");
             }
         }

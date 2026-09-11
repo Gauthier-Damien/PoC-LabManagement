@@ -1,6 +1,7 @@
 using DPD.Application.Common.Exceptions;
 using DPD.Application.Common.Interfaces;
 using DPD.Domain.Enums;
+using MapsterMapper;
 using MediatR;
 
 namespace DPD.Application.Modules.Projects.Queries.GetProjectById;
@@ -43,10 +44,12 @@ public sealed record ProjectDepartmentChargeDto(Department Department, decimal A
 public sealed class GetProjectByIdQueryHandler : IRequestHandler<GetProjectByIdQuery, ProjectDetailDto>
 {
     private readonly IProjectRepository _projects;
+    private readonly IMapper _mapper;
 
-    public GetProjectByIdQueryHandler(IProjectRepository projects)
+    public GetProjectByIdQueryHandler(IProjectRepository projects, IMapper mapper)
     {
         _projects = projects;
+        _mapper = mapper;
     }
 
     public async Task<ProjectDetailDto> Handle(GetProjectByIdQuery request, CancellationToken cancellationToken)
@@ -57,44 +60,6 @@ public sealed class GetProjectByIdQueryHandler : IRequestHandler<GetProjectByIdQ
             throw new NotFoundException("Project not found.");
         }
 
-        var remaining = project.EstimatedMd - project.ActualMd;
-        var variance = project.ActualMd - project.EstimatedMd;
-        var eac = project.ActualMd + Math.Max(0, remaining);
-
-        var studies = project.Studies
-            .Select(s => new ProjectStudySummaryDto(
-                s.Id,
-                s.Code,
-                s.Department,
-                s.Status,
-                s.TargetDate,
-                s.EstimatedMd,
-                s.ActualMd,
-                s.ActualMd - s.EstimatedMd))
-            .OrderBy(s => s.Code)
-            .ToList();
-
-        var departmentCharges = project.Studies
-            .GroupBy(s => s.Department)
-            .Select(g => new ProjectDepartmentChargeDto(g.Key, g.Sum(s => s.ActualMd)))
-            .OrderBy(d => d.Department)
-            .ToList();
-
-        return new ProjectDetailDto(
-            project.Id,
-            project.Name,
-            project.ProjectCode,
-            project.Status,
-            project.GetAllowedNextStatuses(),
-            project.ConsumesCapacity,
-            project.IsArchived,
-            project.ManagerId,
-            project.EstimatedMd,
-            project.ActualMd,
-            remaining,
-            variance,
-            eac,
-            studies,
-            departmentCharges);
+        return _mapper.Map<ProjectDetailDto>(project);
     }
 }

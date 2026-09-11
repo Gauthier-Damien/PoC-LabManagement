@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Configuration de collecte de couverture de code (Coverlet) partagée par les 3 projets de tests
+  (DPD.Domain.Tests, DPD.Application.Tests, DPD.Integration.Tests). Génère à la fois un rapport
+  OpenCover (format consommé par le plugin SonarQube/SonarCloud C# via sonar.cs.opencover.reportsPaths)
+  et Cobertura (utile pour d'autres outils, ex. badges de couverture GitHub).
+  Usage : dotnet test --settings coverlet.runsettings --collect:"XPlat Code Coverage"
+-->
+<RunSettings>
+  <DataCollectionRunSettings>
+    <DataCollectors>
+      <DataCollector friendlyName="XPlat code coverage">
+        <Configuration>
+          <Format>opencover,cobertura</Format>
+          <Exclude>[*.Tests]*</Exclude>
+          <ExcludeByAttribute>Obsolete,GeneratedCodeAttribute,CompilerGeneratedAttribute</ExcludeByAttribute>
+          <SkipAutoProps>true</SkipAutoProps>
+        </Configuration>
+      </DataCollector>
+    </DataCollectors>
+  </DataCollectionRunSettings>
+</RunSettings>

@@ -30,7 +30,7 @@ public sealed class GlobalExceptionMiddleware : IMiddleware
         }
         catch (ForbiddenAccessException ex)
         {
-            _logger.LogWarning("Accès refusé (RBAC Application) : {Message}", ex.Message);
+            _logger.LogWarning(ex, "Accès refusé (RBAC Application) : {Message}", ex.Message);
             await WriteErrorAsync(context, StatusCodes.Status403Forbidden, ex.Message);
         }
         catch (BusinessException ex)

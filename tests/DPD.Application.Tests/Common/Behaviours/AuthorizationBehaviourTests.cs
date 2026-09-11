@@ -21,7 +21,7 @@ public class AuthorizationBehaviourTests
     [Fact]
     public async Task Handle_UserHasAllowedRole_CallsNext()
     {
-        _userService.Setup(u => u.Roles).Returns(["Manager"]);
+        _userService.Setup(u => u.GetRoles()).Returns(["Manager"]);
         _userService.Setup(u => u.UserName).Returns("test.user@dpd.test");
         var behaviour = new AuthorizationBehaviour<RestrictedRequest, string>(_userService.Object);
 
@@ -33,7 +33,7 @@ public class AuthorizationBehaviourTests
     [Fact]
     public async Task Handle_UserLacksRole_ThrowsForbiddenAccessException()
     {
-        _userService.Setup(u => u.Roles).Returns(["Scientist"]);
+        _userService.Setup(u => u.GetRoles()).Returns(["Scientist"]);
         _userService.Setup(u => u.UserName).Returns("test.user@dpd.test");
         var behaviour = new AuthorizationBehaviour<RestrictedRequest, string>(_userService.Object);
 
@@ -45,7 +45,7 @@ public class AuthorizationBehaviourTests
     [Fact]
     public async Task Handle_RequestWithoutRoleRestriction_AlwaysCallsNext()
     {
-        _userService.Setup(u => u.Roles).Returns(["ReadOnly"]);
+        _userService.Setup(u => u.GetRoles()).Returns(["ReadOnly"]);
         var behaviour = new AuthorizationBehaviour<OpenRequest, string>(_userService.Object);
 
         var result = await behaviour.Handle(new OpenRequest(), () => Task.FromResult("ok"), CancellationToken.None);

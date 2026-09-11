@@ -1,0 +1,205 @@
+name: CI - Build, Test & SonarCloud Analysis
+
+# Pipeline decoupe en plusieurs paliers (jobs) pour une visibilite claire de chaque etape dans
+# l'onglet GitHub Actions :
+#   1) build            -> restauration + compilation rapide (feedback immediat en cas d'erreur)
+#   2) test (matrice)    -> execution des 3 projets de tests en parallele (Domain/Application/Integration)
+#   3) sonarcloud        -> analyse qualite complete (build instrumente + couverture) publiee sur SonarCloud
+#   4) quality-summary   -> recapitulatif final agrege dans le Job Summary GitHub
+on:
+  push:
+    branches: [ main, master, Backend ]
+  pull_request:
+    types: [ opened, synchronize, reopened ]
+  workflow_dispatch:
+
+env:
+  DOTNET_VERSION: '8.0.x'
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+
+jobs:
+  # ----------------------------------------------------------------------------------------------
+  # Palier 1 : restauration + compilation de la solution entiere. Sert de garde-fou rapide avant
+  # de lancer les paliers plus couteux (tests, analyse Sonar).
+  # ----------------------------------------------------------------------------------------------
+  build:
+    name: 1 - Build solution
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout du depot
+        uses: actions/checkout@v4
+
+      - name: Setup .NET ${{ env.DOTNET_VERSION }}
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Cache des paquets NuGet
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
+          restore-keys: ${{ runner.os }}-nuget-
+
+      - name: Restaurer les dependances
+        run: dotnet restore DPD.sln
+
+      - name: Compiler la solution (Release)
+        run: dotnet build DPD.sln --no-restore --configuration Release
+
+  # ----------------------------------------------------------------------------------------------
+  # Palier 2 : execution des tests, un job distinct par projet (matrice) afin de voir immediatement
+  # quel projet echoue, avec publication des resultats (.trx) en artefacts consultables.
+  # ----------------------------------------------------------------------------------------------
+  test:
+    name: 2 - Test (${{ matrix.project }})
+    needs: build
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        project:
+          - DPD.Domain.Tests
+          - DPD.Application.Tests
+          - DPD.Integration.Tests
+    steps:
+      - name: Checkout du depot
+        uses: actions/checkout@v4
+
+      - name: Setup .NET ${{ env.DOTNET_VERSION }}
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Cache des paquets NuGet
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
+          restore-keys: ${{ runner.os }}-nuget-
+
+      - name: Restaurer les dependances
+        run: dotnet restore DPD.sln
+
+      - name: Executer ${{ matrix.project }}
+        run: >
+          dotnet test tests/${{ matrix.project }}/${{ matrix.project }}.csproj
+          --configuration Release
+          --logger "trx;LogFileName=${{ matrix.project }}.trx"
+          --results-directory ./TestResults
+
+      - name: Publier les resultats de test (${{ matrix.project }})
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ matrix.project }}
+          path: TestResults/${{ matrix.project }}.trx
+          retention-days: 14
+
+  # ----------------------------------------------------------------------------------------------
+  # Palier 3 : analyse qualite complete (SonarCloud). Le scanner doit envelopper son propre cycle
+  # build+test (begin -> build -> test avec couverture -> end) pour instrumenter correctement le
+  # code ; il est donc autonome vis-a-vis des paliers 1/2 (declenche uniquement s'ils reussissent).
+  # ----------------------------------------------------------------------------------------------
+  sonarcloud:
+    name: 3 - SonarCloud Quality Analysis
+    needs: [ build, test ]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (historique complet requis par l'analyse Sonar)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup JDK 17 (requis par le scanner Sonar)
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup .NET ${{ env.DOTNET_VERSION }}
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Cache SonarCloud
+        uses: actions/cache@v4
+        with:
+          path: ~/.sonar/cache
+          key: ${{ runner.os }}-sonar
+          restore-keys: ${{ runner.os }}-sonar
+
+      - name: Cache des outils .NET (dotnet-sonarscanner)
+        uses: actions/cache@v4
+        with:
+          path: ~/.dotnet/tools
+          key: ${{ runner.os }}-dotnet-tools-${{ hashFiles('.config/dotnet-tools.json') }}
+          restore-keys: ${{ runner.os }}-dotnet-tools
+
+      - name: Cache des paquets NuGet
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
+          restore-keys: ${{ runner.os }}-nuget-
+
+      - name: Restaurer les outils .NET (dotnet-sonarscanner)
+        run: dotnet tool restore
+
+      - name: Restaurer les dependances NuGet
+        run: dotnet restore DPD.sln
+
+      - name: Demarrer l'analyse SonarCloud
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: >
+          dotnet tool run dotnet-sonarscanner begin
+          /k:"${{ vars.SONAR_PROJECT_KEY || 'Gauthier-Damien_PoC-LabManagement' }}"
+          /o:"${{ vars.SONAR_ORGANIZATION || 'gauthier-damien' }}"
+          /d:sonar.host.url="${{ vars.SONAR_HOST_URL || 'https://sonarcloud.io' }}"
+          /d:sonar.token="${{ secrets.SONAR_TOKEN }}"
+          /d:sonar.cs.opencover.reportsPaths="**/coverage.opencover.xml"
+          /d:sonar.coverage.exclusions="**/Migrations/**,**/*.razor.cs,tests/**,**/Program.cs"
+          /d:sonar.exclusions="**/bin/**,**/obj/**,**/wwwroot/lib/**"
+
+      - name: Compiler la solution (instrumentee Sonar)
+        run: dotnet build DPD.sln --no-restore --configuration Release
+
+      - name: Executer les tests avec couverture de code
+        run: >
+          dotnet test DPD.sln --no-build --configuration Release
+          --settings coverlet.runsettings
+          --collect:"XPlat Code Coverage"
+          --results-directory ./TestResults
+          --logger "trx"
+
+      - name: Terminer l'analyse SonarCloud et publier les resultats
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: dotnet tool run dotnet-sonarscanner end /d:sonar.token="${{ secrets.SONAR_TOKEN }}"
+
+  # ----------------------------------------------------------------------------------------------
+  # Palier 4 : recapitulatif final visible dans l'onglet "Summary" du run GitHub Actions, agregeant
+  # le statut de chaque palier precedent (utile pour un coup d'oeil rapide sans ouvrir chaque job).
+  # ----------------------------------------------------------------------------------------------
+  quality-summary:
+    name: 4 - Summary
+    needs: [ build, test, sonarcloud ]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generer le recapitulatif
+        run: |
+          {
+            echo "## Recapitulatif du pipeline CI";
+            echo "";
+            echo "| Palier | Statut |";
+            echo "|---|---|";
+            echo "| 1 - Build | ${{ needs.build.result }} |";
+            echo "| 2 - Test (matrice) | ${{ needs.test.result }} |";
+            echo "| 3 - SonarCloud Analysis | ${{ needs.sonarcloud.result }} |";
+            echo "";
+            echo "Tableau de bord : https://sonarcloud.io/summary/new_code?id=${{ vars.SONAR_PROJECT_KEY || 'Gauthier-Damien_PoC-LabManagement' }}";
+          } >> "$GITHUB_STEP_SUMMARY"
+

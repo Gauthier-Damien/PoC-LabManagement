@@ -3,6 +3,8 @@ using DPD.Application.Modules.Projects.Queries.GetProjectById;
 using DPD.Domain.Entities;
 using DPD.Domain.Enums;
 using FluentAssertions;
+using Mapster;
+using MapsterMapper;
 using Moq;
 
 namespace DPD.Application.Tests.Modules.Projects;
@@ -14,7 +16,10 @@ public class GetProjectByIdQueryHandlerTests
 
     public GetProjectByIdQueryHandlerTests()
     {
-        _handler = new GetProjectByIdQueryHandler(_projects.Object);
+        var config = new TypeAdapterConfig();
+        config.Scan(typeof(DependencyInjection).Assembly);
+        IMapper mapper = new ServiceMapper(Mock.Of<IServiceProvider>(), config);
+        _handler = new GetProjectByIdQueryHandler(_projects.Object, mapper);
     }
 
     [Fact]

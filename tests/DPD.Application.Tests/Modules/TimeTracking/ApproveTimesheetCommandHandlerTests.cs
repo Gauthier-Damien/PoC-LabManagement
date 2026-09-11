@@ -50,6 +50,6 @@ public class ApproveTimesheetCommandHandlerTests
     {
         var command = new ApproveTimesheetCommand(Guid.NewGuid(), Guid.NewGuid());
 
-        command.AllowedRoles.Should().BeEquivalentTo(["Manager", "Admin", "DepartmentResponsible"]);
+        command.AllowedRoles.Should().BeEquivalentTo("Manager", "Admin", "DepartmentResponsible");
     }
 }

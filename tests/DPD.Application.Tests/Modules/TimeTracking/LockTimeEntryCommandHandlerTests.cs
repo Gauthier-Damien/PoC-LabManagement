@@ -34,6 +34,6 @@ public class LockTimeEntryCommandHandlerTests
     {
         var command = new LockTimeEntryCommand(Guid.NewGuid());
 
-        command.AllowedRoles.Should().BeEquivalentTo(["Admin"]);
+        command.AllowedRoles.Should().BeEquivalentTo("Admin");
     }
 }

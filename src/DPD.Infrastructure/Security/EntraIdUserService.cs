@@ -18,7 +18,7 @@ public sealed class EntraIdUserService : IUserService
         _httpContextAccessor.HttpContext?.User?.FindFirstValue(ClaimTypes.Email) ??
         "unknown";
 
-    public IReadOnlyCollection<string> Roles =>
+    public IReadOnlyCollection<string> GetRoles() =>
         _httpContextAccessor.HttpContext?.User?.FindAll(ClaimTypes.Role).Select(x => x.Value).ToArray() ?? [];
 
     public Guid UserId
